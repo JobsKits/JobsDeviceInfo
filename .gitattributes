@@ -1,0 +1,10 @@
+
+# jobs-markdown-toc:start
+"/.jobs-markdown-toc/README.md" filter=jobs-markdown-toc
+"/README.md" filter=jobs-markdown-toc
+"/data/README.md" filter=jobs-markdown-toc
+"/pages/README.md" filter=jobs-markdown-toc
+"/public/README.md" filter=jobs-markdown-toc
+"/scripts/README.md" filter=jobs-markdown-toc
+"/src/README.md" filter=jobs-markdown-toc
+# jobs-markdown-toc:end

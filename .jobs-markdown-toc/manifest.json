@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "files": [
+    ".jobs-markdown-toc/README.md",
+    "README.md",
+    "data/README.md",
+    "pages/README.md",
+    "public/README.md",
+    "scripts/README.md",
+    "src/README.md"
+  ]
+}

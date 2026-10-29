@@ -1,12 +1,26 @@
 # JobsDeviceInfo 服务端
 
-[toc]
+![Jobs出品，必属精品](https://picsum.photos/1500/400)
 
-## 前言
+<!-- jobs-toc:start -->
+<!-- jobs-toc:source {"v":2,"token":"[toc]"} -->
+<details>
+<summary>📚 目录（点击展开 / 收起）</summary>
+
+- [🔥 前言](#%E5%89%8D%E8%A8%80)
+- [一、接口与状态](#jobs-toc-heading-2)
+- [二、校验与保存边界](#jobs-toc-heading-3)
+
+</details>
+<!-- jobs-toc:end -->
+
+---
+
+## 🔥 <span id="前言">前言</span>
 
 服务运行于 [**Cloudflare Workers**](https://developers.cloudflare.com/workers/)，以独立 [**D1**](https://developers.cloudflare.com/d1/) 数据库保存当前采集会话。`index.js` 负责接口与静态文件路由，`profile.js` 负责描述文件和设备回传解析，数据库结构位于 `../migrations/`。
 
-## 一、接口与状态 <a href="#前言">🔼</a> <a href="#文末">🔽</a>
+## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、接口与状态 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 | 接口 | 当前行为 |
 | --- | --- |
@@ -35,7 +49,7 @@
 
 配对字段：`paired` 表示电脑与手机配对流程；`role` 为 `desktop` 或 `phone`，`canDownload` 表示当前浏览器是否可以下载采集描述文件。配对会话只有手机端可下载，电脑只等待结果；直接在手机建立的普通会话保持可下载。两端均可查看、补录 IMEI 或清除同一会话。配对令牌只在创建响应中返回，刷新电脑页面后不能从后端恢复，应重新生成二维码；重新生成会作废当前旧配对。手机确认描述文件后，系统自动回传并由网页轮询返显，不需要手动上传。
 
-## 二、校验与保存边界 <a href="#前言">🔼</a> <a href="#文末">🔽</a>
+## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、校验与保存边界 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 1、拒绝未签名的普通 XML；仅接受嵌入内容且 CMS 签名校验成功的回传，包含单个签名者。`verification: "signature-only"` 仅表示内容签名一致，**没有验证签名者的 Apple 证书信任链，不构成设备真实性或身份认证证明**。
 
@@ -51,4 +65,4 @@
 
 6、下发的描述文件未做站点证书 CMS 签名，系统可能显示“未签名”；这不影响回传本身要求 CMS 内容签名。采集描述文件不包含 MDM、VPN、代理或根证书负载。不要关闭 HTTPS 校验或绕过浏览器证书告警。
 
-<a id="文末" href="#前言">返回前言</a>
+<a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

@@ -2,13 +2,25 @@
 
 ![Jobs出品，必属精品](https://picsum.photos/1500/400)
 
-[toc]
+<!-- jobs-toc:start -->
+<!-- jobs-toc:source {"v":2,"token":"[toc]"} -->
+<details>
+<summary>📚 目录（点击展开 / 收起）</summary>
+
+- [🔥 前言](#%E5%89%8D%E8%A8%80)
+- [一、更新与配置](#jobs-toc-heading-2)
+- [二、验收与边界](#jobs-toc-heading-3)
+
+</details>
+<!-- jobs-toc:end -->
+
+---
 
 ## 🔥 <span id="前言">前言</span>
 
 [**Cloudflare Pages**](https://developers.cloudflare.com/pages/) 默认域入口：[设备采集站](https://jobs-device-info-pages.pages.dev/)。它通过 [Service Binding](https://developers.cloudflare.com/pages/functions/bindings/#service-bindings) 调用本账户现有 `jobs-device-info` Worker。网页、API、描述文件下载和系统回调均使用 Pages 当前域名，手机不请求旧的 `ccwu.cc` 域名。
 
-## 一、更新与配置 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、更新与配置 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 | 文件 | 作用 |
 | --- | --- |
@@ -36,7 +48,7 @@ JOBS_DEVICE_NO_OPEN=1 \
 
 `--help` 和 `--check` 仅做本地读取，不联网或写日志。正常执行后在系统临时目录显示独立日志位置。默认健康检查显式禁用代理；选择 `JOBS_DEVICE_HEALTH_NETWORK=system-proxy` 时，只给检查用 curl 动态传入现有系统 HTTPS 代理，并额外记录短时直连结果；不固定端口或修改系统设置。
 
-## 二、验收与边界 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、验收与边界 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 新版21项线上API与配对联调通过，线上脚本IPv4/IPv6直连下载与源码一致；未向生产提交测试硬件编号。用户已确认真机UDID、IMEI回传并在电脑显示。当前系统端安装提示对应的301返回方式已调整，终态仍需新版真机复验；网络、回传和安装分别记录。
 

@@ -1,12 +1,28 @@
 # JobsDeviceInfo 前端
 
-[toc]
+![Jobs出品，必属精品](https://picsum.photos/1500/400)
 
-## 前言
+<!-- jobs-toc:start -->
+<!-- jobs-toc:source {"v":2,"token":"[toc]"} -->
+<details>
+<summary>📚 目录（点击展开 / 收起）</summary>
+
+- [🔥 前言](#%E5%89%8D%E8%A8%80)
+- [一、文件职责](#jobs-toc-heading-2)
+- [二、真实采集与本地演示](#jobs-toc-heading-3)
+- [三、接口约定](#jobs-toc-heading-4)
+- [四、电脑二维码与双端同步](#jobs-toc-heading-5)
+
+</details>
+<!-- jobs-toc:end -->
+
+---
+
+## 🔥 <span id="前言">前言</span>
 
 本目录是 **[Cloudflare Workers](https://developers.cloudflare.com/workers/)** 托管的静态界面，使用原生 HTML、CSS 与 JavaScript，无运行时外链、远程图片、远程字体或前端构建步骤。
 
-## 一、文件职责 [🔼](#前言) [🔽](#文末)
+## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、文件职责 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 | 文件 | 职责 |
 | --- | --- |
@@ -14,7 +30,7 @@
 | `styles.css` | 手机与电脑布局、系统深浅色、键盘焦点与减少动态效果设置 |
 | `app.js` | 同源 API 请求、3 秒超时、会话轮询、到期处理、复制和本地演示回退 |
 
-## 二、真实采集与本地演示 [🔼](#前言) [🔽](#文末)
+## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、真实采集与本地演示 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 1、页面进入时请求 `GET /api/session`。服务器成功响应会自动覆盖页面中的本地演示状态，不需要手工切换。
 
@@ -30,7 +46,7 @@
 
 7、真实硬件标识不写入 `localStorage` 或 `sessionStorage`。清除失败时会先隐藏本页硬件信息，并在本页连接恢复后优先重试服务端删除。关闭页面后无法保证继续重试，应重新打开页面核对结果；Cloudflare 平台备份不由前端控制。
 
-## 三、接口约定 [🔼](#前言) [🔽](#文末)
+## <span id="jobs-toc-heading-4" data-jobs-toc="v2">三、接口约定 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 | 接口 | 用途 |
 | --- | --- |
@@ -45,7 +61,7 @@
 
 响应采用 `{ "ok": true, "session": ... }`。会话包括 `state`、`expiresAt`、`receivedAt`、`device`、`verification`；`device` 的展示字段为 `udid`、`imei`、`product`、`version`、`serial`、`imeiSource`。`VERSION` 显示为“系统版本 / 构建号”，不强行解释为用户可读的 iOS 版本号。
 
-## 四、电脑二维码与双端同步 [🔼](#前言) [🔽](#文末)
+## <span id="jobs-toc-heading-5" data-jobs-toc="v2">四、电脑二维码与双端同步 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 1、电脑点击“生成扫码二维码”后，服务器创建本次共享会话并设置电脑 Cookie。生成入口不采集手机硬件信息，不替代手机上的同意与系统安装操作。
 
@@ -59,4 +75,4 @@
 
 6、本地预览从 `/public-site.json` 的 `url` 读取真实部署地址。尚未部署时不生成指向 `localhost` 或 `127.0.0.1` 的手机二维码；部署地址可用时，按钮会先在同一个电脑标签页跳转线上站点，再生成配对码。这样手机与电脑的会话始终同源，不把本地数据库会话误编码成线上二维码。`#start-pair` 只是这一按钮发起的生成意图，不包含任何秘密。
 
-<a id="文末" href="#前言">返回前言</a>
+<a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

@@ -2,7 +2,20 @@
 
 ![Jobs出品，必属精品](https://picsum.photos/1500/400)
 
-[toc]
+<!-- jobs-toc:start -->
+<!-- jobs-toc:source {"v":2,"token":"[toc]"} -->
+<details>
+<summary>📚 目录（点击展开 / 收起）</summary>
+
+- [🔥 前言](#%E5%89%8D%E8%A8%80)
+- [一、来源与覆盖](#jobs-toc-heading-2)
+- [二、文件与使用](#jobs-toc-heading-3)
+- [三、更新方法](#jobs-toc-heading-4)
+- [四、系统版本映射](#jobs-toc-heading-5)
+- [五、许可证](#jobs-toc-heading-6)
+
+</details>
+<!-- jobs-toc:end -->
 
 ---
 
@@ -10,7 +23,7 @@
 
 本目录将设备回传的 `PRODUCT` 技术标识映射为可读型号名称。**型号名称是依据本地资料推导的结果，不是系统通过 Profile Service 直接返回的名称，也不用于证明设备真实性。** 原始技术标识应单独保留展示；未回传或未命中映射时，名称返回空值，不根据 UDID、浏览器标识或相邻编号猜测。
 
-## 一、来源与覆盖 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、来源与覆盖 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 本次没有找到可直接下载并用于本项目的 [**Apple**](https://developer.apple.com/documentation/appleschoolmanagerapi/orgdevice/attributes-data.dictionary) 公共全量型号对照表。Apple 组织设备 API 的 `productType` 和 `deviceModel` 是组织设备资源属性，不能当作匿名公共查询表。因此采用 [**DeviceKit**](https://github.com/devicekit/DeviceKit) 作者维护的主仓资料，静态提取标识及名称，不执行上游代码，不增加运行时依赖。
 
@@ -29,7 +42,7 @@
 
 上游资料可能出现遗漏或修订。本站应将来源标记为映射推导，不能将其表述为 Apple 官方识别结果。
 
-## 二、文件与使用 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、文件与使用 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 | 文件 | 用途 |
 | --- | --- |
@@ -38,7 +51,7 @@
 
 读取映射时先用 `Object.hasOwn(mapping, product)` 验证为自有键，再读取字符串名称；未命中一律返回 `null`。不能把对象继承属性或原始技术标识回退成已识别的型号名称。显示来源时明确说明“根据产品标识映射”。
 
-## 三、更新方法 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-4" data-jobs-toc="v2">三、更新方法 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 1、在 DeviceKit 主仓核对目标提交，使用固定提交 URL 获取 `Source/Device.generated.swift` 和 `LICENSE` 文本；不运行下载的源码、生成器或安装脚本。
 
@@ -50,7 +63,7 @@
 
 5、核对已知 iPhone / iPad、未知标识以及 `constructor` 等非自有键的行为；运行项目现有测试及构建。映射变更后需要重新部署后端，浏览器不在运行时请求上游资料。
 
-## 四、系统版本映射 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-5" data-jobs-toc="v2">四、系统版本映射 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 [apple-os-versions.json](./apple-os-versions.json)由[Apple Software Lookup Service](https://gdmf.apple.com/v2/pmv)的PublicAssetSets及AssetSets提取，仅保留iPhone/iPad公开构建号、系统版本和支持产品列表。当前包含44个无版本歧义的构建号；同构建号若出现冲突版本则不收录。Apple将该服务列为[公开更新资料源](https://developer.apple.com/documentation/devicemanagement/deploying-software-updates-using-declarative-management)。
 
@@ -58,7 +71,7 @@
 
 更新时重新获取公开PMV，只处理iOS/iPadOS列表，过滤合法版本/构建号及iPhone/iPad产品，按构建号合并、丢弃版本冲突，再运行现有回归与部署。原始PMV只在本机work中作审计；交付仅包含提取后的公开映射。
 
-## 五、许可证 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-6" data-jobs-toc="v2">五、许可证 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 资料源自 DeviceKit，采用 MIT 许可证，原始版权声明为 `Copyright (c) 2015 Dennis Weissmann`。原文：[固定提交 LICENSE](https://github.com/devicekit/DeviceKit/blob/19528aa07e1426626ea9fb2c4a161edf43c4f9e8/LICENSE)。再分发本映射时保留同目录的许可证及来源说明；本项目没有复制或修改上游 Swift 库代码。
 

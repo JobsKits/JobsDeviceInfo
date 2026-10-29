@@ -2,7 +2,24 @@
 
 ![Jobs出品，必属精品](https://picsum.photos/1500/400)
 
-[toc]
+<!-- jobs-toc:start -->
+<!-- jobs-toc:source {"v":2,"token":"[toc]"} -->
+<details>
+<summary>📚 目录（点击展开 / 收起）</summary>
+
+- [🔥 前言](#%E5%89%8D%E8%A8%80)
+- [一、最快使用](#jobs-toc-heading-2)
+- [二、环境、命令和部署范围](#jobs-toc-heading-3)
+- [三、采集、签名和保存边界](#jobs-toc-heading-4)
+- [四、本地预览、网络回退与验证](#jobs-toc-heading-5)
+- [五、目录和接口](#jobs-toc-heading-6)
+- [六、工程规模和依赖](#jobs-toc-heading-7)
+- [七、日志和配置撤回](#jobs-toc-heading-8)
+
+</details>
+<!-- jobs-toc:end -->
+
+---
 
 ## 🔥 <span id="前言">前言</span>
 
@@ -28,7 +45,7 @@
 | API 离线回退 | 请求失败或超时后展示明确标记的本地演示状态；恢复成功请求后自动切回服务端。演示状态不会生成假的描述文件。 |
 | 隐私范围 | 每次会话 15 分钟，浏览器仅能访问自己的结果；不提供公开设备列表。 |
 
-## 一、最快使用 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、最快使用 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 当前已部署的采集站：[https://jobs-device-info-pages.pages.dev](https://jobs-device-info-pages.pages.dev/)。可双击本文件夹的 [打开线上采集站](./打开线上采集站.webloc)，在电脑生成新二维码后用手机扫码。以下步骤用于重新部署和维护；真实系统回传仍须在手机上验收。
 
@@ -52,7 +69,7 @@
 
 当前流程支持 Apple 的 Profile Service。**Android 浏览器不能使用这份描述文件采集 UDID / IMEI；本项目没有绕过手机系统权限的功能。**
 
-## 二、环境、命令和部署范围 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、环境、命令和部署范围 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 部署与预览脚本使用 [**macOS**](https://www.apple.com/macos/) 自带 `/bin/zsh`；需要 [**Node.js**](https://nodejs.org/) 22.13 或更高版本及其自带 [**npm**](https://www.npmjs.com/)，建议使用 24 LTS 或更新的受支持版本。测试使用 Node 内置 `node:sqlite`，旧的 22.0～22.12 不满足本项目要求。没有 Node/npm 时停止并给出官方安装入口，不自动修改 [**Homebrew**](https://brew.sh/)、系统代理或 Shell 配置。
 
@@ -96,7 +113,7 @@ npm run build
 
 健康检查通过后，部署工具还会写入 `public/public-site.json`，其中仅包含无参数的线上 HTTPS 根站 URL。点击本机预览里的线上配对入口时，页面转到这个线上站点并生成可被手机访问的二维码；电脑留在该线上页面等待结果。线上网站直接使用自身站点地址，首次部署无需为此再次发布；之后更新部署时该公开配置一并打包。配对链接的随机凭据放在 URL fragment，不把 UDID、IMEI、Cookie 或服务端凭据写入二维码。
 
-## 三、采集、签名和保存边界 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-4" data-jobs-toc="v2">三、采集、签名和保存边界 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 1、**网页不能静默读取 UDID / IMEI**。用户明确同意后，网站生成最小 Profile Service 描述文件，由手机系统在确认后把信息送回本站的 Cloudflare 服务。不会安装 MDM 管理、VPN、代理、根证书，也不读取通讯录、相册或定位。
 
@@ -112,7 +129,7 @@ npm run build
 
 依据：[苹果 Profile Service 示例](https://developer.apple.com/library/archive/documentation/NetworkingInternet/Conceptual/iPhoneOTAConfiguration/ConfigurationProfileExamples/ConfigurationProfileExamples.html)、[描述文件安装说明](https://support.apple.com/zh-cn/102400)、[D1 Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/)。归档示例不构成所有当前系统和机型返回 IMEI 的保证。
 
-## 四、本地预览、网络回退与验证 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-5" data-jobs-toc="v2">四、本地预览、网络回退与验证 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 预览脚本先由锁定依赖构建本地二维码资源，再用 `wrangler d1 migrations apply DB --local` 初始化 `.wrangler` 内的本地存储，启动 `wrangler dev --ip 127.0.0.1 --port 8787`。本地预览不会发布网站；Ctrl+C 停止。手机不能访问这台 Mac 的 `127.0.0.1`，真机采集须用部署后的 HTTPS 地址。本机页面读取已部署的公开站点配置，点击线上配对入口后转到线上页面；此后配对会话与结果保存在远程 D1。
 
@@ -140,7 +157,7 @@ node ./scripts/verify-local.mjs
 | 电脑可访问，手机 4G 的 Safari 未能加载网页 | 先验证手机到域名的网络与 TLS 可达性；尚未进入描述文件授权。代理检查成功不能代替直连与手机验收，不承诺换 Cloudflare IP 或关闭 HTTP/3 即可修复。 |
 | 发布完成但健康检查失败 | 检查 `.deploy/deployment.log`、本机网络与 Cloudflare TLS 状态；本次失败不会写成成功，已有成功记录保留，可按同目录待完成记录重试。 |
 
-## 五、目录和接口 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-6" data-jobs-toc="v2">五、目录和接口 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 ```text
 JobsDeviceInfo/
@@ -148,6 +165,7 @@ JobsDeviceInfo/
 ├── 【MacOS】🌐部署Pages入口.command     更新 Pages 访问入口
 ├── 【MacOS】🧪本地预览.command          双击本地预览入口
 ├── README.md                          使用与部署总览
+├── .jobs-markdown-toc/                本地动态目录与远端折叠目录过滤器
 ├── deploy.settings.json               账户与资源名称，无凭据
 ├── wrangler.json                      Worker、本地 D1 与静态文件模板
 ├── package.json / package-lock.json    精确版本与锁文件
@@ -162,6 +180,8 @@ JobsDeviceInfo/
 
 目录说明：[网页](./public/README.md)、[服务端](./src/README.md)、[Pages 入口](./pages/README.md)、[部署和联调工具](./scripts/README.md)。`.deploy/`、`.build/`、`.pages-build/`、`.wrangler/`、`node_modules/`、`.deployment.json` 和 `.pages-deployment.json` 是忽略的本地状态，不包含在业务源码统计中。不要把 Cloudflare Token、Cookie、私钥或签名证书加入源码或压缩包。
 
+文档目录：本地保留 `[toc]`；整文件暂存时自动生成按标题层级缩进、默认收起的折叠目录，检出或拉取实际写入文件时还原标签。当前机器已登记本仓精确远端，后续普通克隆首次检出即还原；换机先审阅工具并安装一次。首次接入须整文件暂存清单内全部文档及配套工具，再执行索引检查；安装、验证和撤回见[目录过滤器说明](./.jobs-markdown-toc/README.md)。
+
 | 方法与路径 | 输入 / 输出 |
 | --- | --- |
 | `GET /api/health` | 服务与会话表健康检查；`ok` 与 `service` 标识。 |
@@ -175,7 +195,7 @@ JobsDeviceInfo/
 | `POST /api/session/details` | `{ "fields": { "imei2": "…" } }`；九项白名单补录，不能覆盖系统值或修改UDID。 |
 | `DELETE /api/session` | 删除自己的当前会话并清除 Cookie。 |
 
-## 六、工程规模和依赖 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-7" data-jobs-toc="v2">六、工程规模和依赖 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 统计日期：2026-10-28。依据当前 `public/index.html`、`src/index.js`、`migrations/*.sql`、`wrangler.json`、`package.json` 与锁文件；业务规模按路由条目和 HTTP 方法 / 路径组合统计，弹层与静态文件不另计页面，健康检查不计业务接口。
 
@@ -262,7 +282,7 @@ flowchart TD
   O --> Q
 ```
 
-## 七、日志和配置撤回 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-8" data-jobs-toc="v2">七、日志和配置撤回 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 双击脚本的日志位于系统临时目录，名称分别为 `【MacOS】🚀部署到Cloudflare.log`、`【MacOS】🧪本地预览.log`。运行时显示真实位置；日志为纯文本，过滤认证令牌、颜色和回调令牌。`.deploy/` 还保留本项目部署输出、数据库列表和健康检查结果，均不含 Cloudflare OAuth 凭据。
 

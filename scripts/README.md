@@ -2,13 +2,25 @@
 
 ![Jobs出品，必属精品](https://picsum.photos/1500/400)
 
-[toc]
+<!-- jobs-toc:start -->
+<!-- jobs-toc:source {"v":2,"token":"[toc]"} -->
+<details>
+<summary>📚 目录（点击展开 / 收起）</summary>
+
+- [前言](#%E5%89%8D%E8%A8%80)
+- [一、实际入口](#jobs-toc-heading-2)
+- [二、验证与风险](#jobs-toc-heading-3)
+
+</details>
+<!-- jobs-toc:end -->
+
+---
 
 ## <span id="前言">前言</span>
 
 这里保存 [**Node.js**](https://nodejs.org/) 配置处理与本地联调工具。面向普通使用的双击入口位于父目录，完整范围见[根说明](../README.md)。配置处理与联调不读取 [**Cloudflare**](https://developers.cloudflare.com/) OAuth 凭据；独立域名绑定工具仅把既有 Wrangler 授权捕获在进程内存，通过标准输入送往官方 API，不输出或保存凭据。
 
-## 一、实际入口 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、实际入口 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 | 文件 | 职责与输入输出 |
 | --- | --- |
@@ -23,7 +35,7 @@
 
 `save-deployment <HTTPS根站URL> [direct|system-proxy|unknown] [true|false|unknown]` 的后两项分别表示选定检查线路、本机不注入显式代理的结果。未提供时记录 `checkedVia: "unknown"` 与 `directWithoutExplicitProxy: null`；每次保存均记录当前 `checkedAt` 并将独立手机验收标为 `mobileVerified: false`，保留旧记录的其它有效字段。仅在部署入口选定线路的健康 JSON 检查通过后调用；代理成功后还会额外进行 3 秒连接 / 6 秒总超时的无显式代理检查，其失败只影响记录与警告，不撤销已经完成的发布或改变退出码 0 的含义。
 
-## 二、验证与风险 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、验证与风险 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 在父目录启动本地预览后，打开另一个终端：
 
