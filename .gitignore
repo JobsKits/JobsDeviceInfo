@@ -1,0 +1,15 @@
+node_modules/
+.wrangler/
+.deploy/
+.build/
+.pages-build/
+.pages-deployment.json
+.deployment.json
+.dev.vars*
+.env*
+*.log
+.DS_Store
+*.pem
+*.key
+*.p12
+*.pfx
