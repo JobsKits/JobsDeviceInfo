@@ -1,0 +1,802 @@
+/* JobsDeviceInfo · Created by Jobs. */
+"use strict";
+
+(() => {
+  const timeoutSetting = Number(document.querySelector('meta[name="api-timeout-ms"]')?.content);
+  const API_TIMEOUT_MS = Number.isFinite(timeoutSetting) && timeoutSetting >= 1000 ? timeoutSetting : 3000;
+  const fields = [
+    ["udid", "UDID"], ["imei", "IMEI"], ["imei2", "IMEI2"], ["iccid", "ICCID"], ["meid", "MEID"],
+    ["osVersion", "系统版本"], ["modelName", "型号名称"], ["serial", "序列号"],
+    ["modelNumber", "型号号码 / 部件号"], ["seid", "SEID"], ["product", "产品型号标识"], ["version", "系统构建号"]
+  ].map(([key, label]) => ({ key, label }));
+  const manualKeys = ["imei", "imei2", "iccid", "meid", "osVersion", "modelName", "serial", "modelNumber", "seid"];
+  const manualId = (key) => `manual${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+  const ids = [
+    "connection", "connectionLabel", "demoBanner", "demoRetry", "flash", "supportNote", "consent",
+    "startCapture", "startLabel", "downloadAgain", "actionFootnote", "copyLink", "resultTag", "sessionTime",
+    "reload", "emptyState", "emptyTitle", "emptyCopy", "emptyReload", "resultDetails", "udidHelp", "imeiHelp", "verificationNote",
+    "manualSection", "detailsForm", "saveDetails", "copyAll", "clearData", "consentLabel", "pairedConsent",
+    "pairSection", "pairIntro", "qrPanel", "pairQr", "qrState", "qrExpiry", "copyPair", "generatePair",
+    "pairFootnote", "pairNotice", "copyPendingPair", "copyDialog", "copyDialogTitle", "copyDialogMessage", "copyDialogClose",
+    ...fields.flatMap(({ key }) => [`${key}Value`, `${key}Source`]),
+    ...manualKeys.flatMap((key) => [manualId(key), `${manualId(key)}Status`])
+  ];
+  const ui = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
+  const appleMobile = /iPhone|iPad|iPod/.test(navigator.userAgent)
+    || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  const mobileSafari = appleMobile && /Safari/.test(navigator.userAgent)
+    && !/CriOS|FxiOS|EdgiOS|OPiOS|MicroMessenger|FBAN|FBAV/.test(navigator.userAgent);
+  const localPreview = /^(localhost|127(?:\.[0-9]+){3}|\[::1\])$/.test(window.location.hostname)
+    || window.location.protocol !== "https:";
+  const fragment = new URLSearchParams(window.location.hash.slice(1));
+  const rawPairToken = fragment.get("pair");
+  const validPairToken = typeof rawPairToken === "string" && /^[a-f0-9]{64}$/i.test(rawPairToken) ? rawPairToken : "";
+  const startPairRequested = window.location.hash === "#start-pair";
+  if (rawPairToken !== null || startPairRequested) {
+    // 配对秘密只留在内存，避免后续复制网址时带出。
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+  }
+  const state = {
+    mode: "connecting",
+    session: null,
+    demoSession: null,
+    busy: false,
+    refreshing: false,
+    pendingDelete: false,
+    pollTimer: null,
+    operation: "",
+    expired: false,
+    incomingPair: validPairToken,
+    pairUrl: "",
+    qrExpiresAt: 0,
+    qrError: "",
+    publicOrigin: localPreview ? "" : window.location.origin,
+    publicCheckDone: !localPreview
+  };
+  let copyTrigger = null;
+
+  class ApiError extends Error {
+    constructor(message, status = 0) {
+      super(message);
+      this.name = "ApiError";
+      this.status = status;
+    }
+  }
+
+  async function api(path, options = {}) {
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    try {
+      const response = await fetch(path, {
+        method: options.method || "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+        signal: controller.signal,
+        headers: { Accept: "application/json", ...(options.body ? { "Content-Type": "application/json" } : {}) },
+        ...(options.body ? { body: JSON.stringify(options.body) } : {})
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data || data.ok !== true) {
+        const message = typeof data?.error === "string" ? data.error.slice(0, 180)
+          : typeof data?.error?.message === "string" ? data.error.message.slice(0, 180) : "采集服务暂时不可用";
+        throw new ApiError(message, response.status);
+      }
+      return data;
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        throw new ApiError("连接超时，请检查网络后重试");
+      }
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError("无法连接采集服务，请检查网络后重试");
+    } finally {
+      clearTimeout(deadline);
+    }
+  }
+
+  async function loadPublicOrigin() {
+    if (!localPreview) {
+      return;
+    }
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    try {
+      const response = await fetch("/public-site.json", { cache: "no-store", signal: controller.signal });
+      if (!response.ok) {
+        return;
+      }
+      const data = await response.json();
+      const url = new URL(data.url);
+      if (url.protocol === "https:" && !url.username && !url.password && url.pathname === "/"
+        && !url.search && !url.hash && !/^(localhost|127(?:\.[0-9]+){3}|\[::1\])$/.test(url.hostname)) {
+        state.publicOrigin = url.origin;
+      }
+    } catch {
+      state.publicOrigin = "";
+    } finally {
+      clearTimeout(deadline);
+      state.publicCheckDone = true;
+      render();
+    }
+  }
+
+  async function paintPairQr(value) {
+    let deadline;
+    const module = await Promise.race([
+      import("/qr-code.js"),
+      new Promise((_, reject) => {
+        deadline = setTimeout(() => reject(new ApiError("二维码组件加载超时，请重新尝试")), API_TIMEOUT_MS);
+      })
+    ]).finally(() => clearTimeout(deadline));
+    const toCanvas = module.toCanvas || module.default?.toCanvas;
+    if (typeof toCanvas !== "function") {
+      throw new ApiError("二维码组件未加载，请重新部署完整项目");
+    }
+    await toCanvas(ui.pairQr, value, {
+      width: 224,
+      margin: 4,
+      color: { dark: "#17392d", light: "#ffffff" },
+      errorCorrectionLevel: "M"
+    });
+  }
+
+  async function generatePair() {
+    if (state.busy || state.refreshing || !state.publicOrigin) {
+      return;
+    }
+    if (localPreview) {
+      window.location.assign(`${state.publicOrigin}/#start-pair`);
+      return;
+    }
+    state.busy = true;
+    state.operation = "pair";
+    state.qrError = "";
+    render();
+    try {
+      const data = await api("/api/pair", { method: "POST", body: {} });
+      if (typeof data.pairToken !== "string" || !/^[a-f0-9]{64}$/i.test(data.pairToken)) {
+        throw new ApiError("服务端返回的配对入口无法解析");
+      }
+      const session = normalizeSession(data.session);
+      const pairUrl = `${window.location.origin}/#pair=${data.pairToken}`;
+      state.session = session;
+      state.mode = "live";
+      state.demoSession = null;
+      resetManualFields();
+      state.incomingPair = "";
+      state.pairUrl = pairUrl;
+      state.qrExpiresAt = session.expiresAt;
+      state.expired = false;
+      state.pendingDelete = false;
+      await paintPairQr(pairUrl);
+      flash("二维码已生成。请用 iPhone / iPad 扫码并在 Safari 中确认采集；手机回传后，电脑本页会自动显示结果。");
+    } catch (error) {
+      state.pairUrl = "";
+      state.qrExpiresAt = 0;
+      state.qrError = error.message;
+      flash(`${error.message}。未生成可用二维码，请重新尝试。`, true);
+    } finally {
+      state.busy = false;
+      state.operation = "";
+      render();
+      schedulePoll();
+    }
+  }
+
+  function timestamp(value) {
+    if (typeof value === "number") {
+      return value < 100000000000 ? value * 1000 : value;
+    }
+    return Date.parse(value);
+  }
+
+  function normalizeSession(value) {
+    if (value === null) {
+      return null;
+    }
+    if (!value || !Number.isFinite(timestamp(value.expiresAt))) {
+      throw new ApiError("服务端会话格式无法解析");
+    }
+    const device = {};
+    for (const key of [...fields.map((field) => field.key), "imeiSource", "imeiStatus"]) {
+      device[key] = typeof value.device?.[key] === "string" ? value.device[key].slice(0, 256) : "";
+    }
+    device.fieldSources = {};
+    for (const { key } of fields) {
+      const source = value.device?.fieldSources?.[key];
+      if (["profile", "manual", "derived"].includes(source)) {
+        device.fieldSources[key] = source;
+      }
+    }
+    if (!device.imeiSource && typeof value.imeiSource === "string") {
+      device.imeiSource = value.imeiSource;
+    }
+    return {
+      ...value,
+      state: value.state === "received" ? "received" : "waiting",
+      device,
+      expiresAt: timestamp(value.expiresAt)
+    };
+  }
+
+  function newDemoSession() {
+    return {
+      state: "received",
+      expiresAt: Date.now() + 15 * 60 * 1000,
+      receivedAt: new Date().toISOString(),
+      verification: "demo",
+      device: {
+        udid: "演示 UDID · 非真实设备编号",
+        imei: "",
+        product: "iPhone（本地演示）",
+        version: "演示构建号",
+        osVersion: "演示系统版本",
+        modelName: "演示型号名称",
+        serial: "演示序列号",
+        modelNumber: "演示型号号码",
+        imeiSource: "",
+        fieldSources: { udid: "profile", product: "profile", version: "profile", osVersion: "manual", modelName: "derived", serial: "profile", modelNumber: "manual" }
+      }
+    };
+  }
+
+  function enterDemo() {
+    if (state.mode !== "demo") {
+      resetManualFields();
+      state.demoSession = newDemoSession();
+    }
+    state.mode = "demo";
+    state.session = null;
+    render();
+  }
+
+  function flash(message, error = false) {
+    ui.flash.textContent = message;
+    ui.flash.dataset.error = String(error);
+    ui.flash.hidden = !message;
+  }
+
+  function currentSession() {
+    return state.mode === "demo" ? state.demoSession : state.session;
+  }
+
+  function setField(element, value, fallback) {
+    element.textContent = value || fallback;
+    element.classList.toggle("is-empty", !value);
+  }
+
+  function fieldSource(device, key) {
+    const source = device.fieldSources?.[key];
+    if (["profile", "manual", "derived"].includes(source)) {
+      return source;
+    }
+    return key === "imei" && ["profile", "manual"].includes(device.imeiSource) ? device.imeiSource : "";
+  }
+
+  function sourceLabel(source, key) {
+    if (source === "derived") {
+      return key === "modelName" ? "型号映射" : key === "osVersion" ? "版本映射" : "资料映射";
+    }
+    return { profile: "系统回传", manual: "手动填写" }[source] || "来源未标明";
+  }
+
+  function canEditField(device, key) {
+    const source = fieldSource(device, key);
+    return !device[key] || source === "manual" || (key === "modelName" && source === "derived");
+  }
+
+  function resetManualFields() {
+    for (const key of manualKeys) {
+      const input = ui[manualId(key)];
+      input.value = "";
+      input.dataset.edited = "false";
+    }
+  }
+
+  function renderManualFields(device, session, demo) {
+    for (const key of manualKeys) {
+      const input = ui[manualId(key)];
+      const source = fieldSource(device, key);
+      const readOnly = Boolean(device[key] && !canEditField(device, key));
+      input.readOnly = readOnly;
+      input.disabled = state.busy || !session;
+      if (readOnly || input.dataset.edited !== "true") {
+        input.value = device[key] || "";
+        input.dataset.edited = "false";
+      }
+      const description = readOnly ? `${sourceLabel(source, key)}，只读`
+        : source === "derived" ? `${sourceLabel(source, key)}，可手动更正`
+          : source === "manual" ? "手动填写，可修改" : "尚未返回，可补录";
+      ui[`${manualId(key)}Status`].textContent = `${demo ? "仅本地演示 · " : ""}${description}`;
+    }
+  }
+
+  function renderClock() {
+    if (state.pairUrl && state.qrExpiresAt > Date.now()) {
+      const qrRemaining = Math.ceil((state.qrExpiresAt - Date.now()) / 1000);
+      ui.qrExpiry.textContent = `${String(Math.floor(qrRemaining / 60)).padStart(2, "0")}:${String(qrRemaining % 60).padStart(2, "0")} 后到期`;
+    } else {
+      ui.qrExpiry.textContent = "";
+    }
+    const session = currentSession();
+    if (state.mode === "demo") {
+      ui.sessionTime.textContent = session ? "本地示例 · 不代表当前设备" : "本地演示数据已清空";
+      return;
+    }
+    if (!session) {
+      ui.sessionTime.textContent = state.expired ? "本次会话已到期，请重新发起采集" : "完成系统确认后，结果显示在这里";
+      return;
+    }
+    const remaining = Math.max(0, Math.ceil((session.expiresAt - Date.now()) / 1000));
+    const minutes = String(Math.floor(remaining / 60)).padStart(2, "0");
+    const seconds = String(remaining % 60).padStart(2, "0");
+    const waitingLabel = session.paired && session.role === "desktop" ? "等待手机确认并回传" : "等待系统回传";
+    ui.sessionTime.textContent = `${session.state === "received" ? "已收到系统回传" : waitingLabel} · ${minutes}:${seconds} 后到期`;
+  }
+
+  function render() {
+    const demo = state.mode === "demo";
+    const session = currentSession();
+    const device = session?.device || {};
+    const received = session?.state === "received";
+    const callbackCode = !demo && !received && /^[a-z0-9_]{1,64}$/.test(session?.callbackError?.code || "")
+      ? session.callbackError.code : "";
+    const hasDetails = Boolean(session && (received || fields.some(({ key }) => device[key])));
+    const pairedPhone = Boolean(state.incomingPair || (session?.paired && session.role === "phone"));
+    const canDownload = session?.canDownload !== false;
+    ui.connection.dataset.state = state.mode;
+    ui.connectionLabel.textContent = demo ? "本地演示" : state.mode === "live" ? "采集服务已连接" : "正在连接服务";
+    ui.demoBanner.hidden = !demo;
+    ui.supportNote.textContent = mobileSafari
+      ? "当前浏览器支持苹果设备确认流程，请检查描述文件内容后再安装。"
+      : appleMobile ? "请将本站地址复制到 Safari 中打开，避免内置浏览器影响描述文件下载。"
+        : "在下方生成二维码，用 iPhone / iPad 的 Safari 打开。手机完成系统确认后，本电脑自动显示结果。";
+    ui.consentLabel.hidden = !appleMobile && !demo;
+    ui.startCapture.hidden = !appleMobile && !demo;
+    ui.pairedConsent.hidden = !pairedPhone;
+    ui.pairNotice.hidden = !pairedPhone;
+    ui.copyPendingPair.hidden = !state.incomingPair || mobileSafari;
+    ui.pairSection.hidden = appleMobile;
+    ui.generatePair.disabled = state.busy || state.refreshing || !state.publicCheckDone || !state.publicOrigin;
+    ui.generatePair.textContent = state.operation === "pair" ? "正在生成二维码…"
+      : !state.publicCheckDone ? "正在检测部署地址…"
+        : localPreview && state.publicOrigin ? "前往线上网站生成二维码"
+          : received && session?.paired ? "开始新的扫码采集"
+            : state.pairUrl ? "刷新二维码（替换本次会话）" : "生成扫码二维码";
+    ui.pairIntro.textContent = localPreview
+      ? state.publicOrigin ? "将前往已部署网站，生成可供手机访问的二维码。手机确认后，当前电脑标签页自动显示同一份结果。"
+        : "本地地址无法供手机直接访问。请先运行一键部署，取得线上 HTTPS 地址后再生成扫码入口。"
+      : "生成二维码后，用 iPhone / iPad 扫码。手机确认并回传后，本页自动显示同一份结果。";
+    ui.pairFootnote.textContent = state.qrError || (session?.paired && session.role === "desktop" && received
+      ? "本次手机信息已回传，二维码不再重复使用。开始新的扫码采集将替换当前会话。"
+      : session?.paired && session.role === "desktop" && !state.pairUrl
+        ? "网页刷新后不会重新显示旧配对链接；需要时请生成新二维码。生成会替换本次旧会话。"
+        : "生成入口不会读取手机信息。手机仍须勾选同意并手动安装描述文件。");
+    ui.qrPanel.hidden = !state.pairUrl || state.qrExpiresAt <= Date.now() || received;
+    ui.qrState.textContent = received ? "手机信息已回传" : "等待手机扫码并确认";
+    ui.copyPair.disabled = !state.pairUrl || state.busy || received;
+    ui.startCapture.disabled = !ui.consent.checked || state.busy || state.refreshing || state.mode === "connecting"
+      || (!demo && !state.incomingPair && session?.paired && !canDownload);
+    ui.startLabel.textContent = state.operation === "start" ? "正在准备确认文件…"
+      : demo ? "模拟一次采集（仅本地演示）"
+        : pairedPhone && received ? "本次配对采集已完成"
+          : pairedPhone ? "同意并下载本次确认文件" : "下载设备确认文件";
+    ui.actionFootnote.textContent = demo
+      ? "演示操作仅在当前页面生效，不会下载描述文件或读取真实设备编号。"
+      : callbackCode ? `系统回传未通过校验（${callbackCode}）。请保留本次会话，修复后再重试安装。`
+      : !appleMobile ? "电脑无需下载描述文件；请保持本页打开，等待手机完成确认与回传。"
+        : pairedPhone && received ? "本次配对采集已完成。重新采集时，请先清除本次会话，再由电脑生成新二维码。"
+          : "需要你在手机上手动确认。不会因为打开网页就自动采集。";
+    ui.downloadAgain.hidden = demo || !session || !mobileSafari || received || state.busy || state.refreshing || !canDownload;
+    ui.resultTag.textContent = demo ? "演示数据" : received ? "已回传" : callbackCode ? "回传未通过" : session ? "等待确认" : state.expired ? "已到期" : "等待采集";
+    ui.resultTag.dataset.state = demo ? "demo" : received ? "received" : "waiting";
+    ui.emptyState.hidden = hasDetails;
+    ui.resultDetails.hidden = !hasDetails;
+    ui.emptyTitle.textContent = state.expired && !demo ? "本次采集已到期"
+      : callbackCode ? "系统回传未通过校验"
+      : session ? "等待系统回传设备信息" : demo ? "演示数据已清空" : "还没有设备信息";
+    ui.emptyCopy.textContent = state.expired && !demo ? "结果已不可查询。重新勾选同意项，再开始一次采集。"
+      : callbackCode ? `错误码：${callbackCode}。请保留本次会话并将错误码反馈给维护者，可重新加载查看处理结果。`
+      : session?.paired && session.role === "desktop" ? "用手机扫描本页二维码，在 Safari 中同意采集并安装确认文件。手机回传后，此处自动更新。"
+        : session ? "请完成手机设置中的描述文件安装，再返回本站。页面会自动更新。"
+        : demo ? "可以重新模拟一次采集，或重新连接服务获取真实结果。" : "从采集步骤开始。这里只展示本次会话回传的信息。";
+    for (const { key } of fields) {
+      setField(ui[`${key}Value`], device[key], key === "imei" && device.imeiStatus === "unrecognized_format" ? "未取得有效 IMEI" : "未返回");
+      const source = fieldSource(device, key);
+      const badge = ui[`${key}Source`];
+      badge.hidden = !device[key];
+      badge.textContent = `${demo ? "演示 · " : ""}${sourceLabel(source, key)}`;
+      badge.dataset.source = source || "unknown";
+    }
+    ui.udidHelp.textContent = demo ? "此文字仅演示展示与复制，不是有效 UDID。" : "苹果设备标识；不会用其他编号替代。";
+    ui.imeiHelp.textContent = fieldSource(device, "imei") === "manual"
+      ? "这项内容由你手动填写，未由系统回传验证。"
+      : !device.imei && device.imeiStatus === "unrecognized_format"
+        ? "本次系统回传的 IMEI 格式无法识别，未保存该值。可到手机设置查看后手动补录。"
+      : "并非所有设备或系统都会回传 IMEI；Wi-Fi 版设备没有 IMEI。";
+    ui.verificationNote.textContent = demo ? "本地演示没有进行真实设备采集，也没有验证设备身份。"
+      : !received ? "目前仅保存手动填写的内容，UDID 仍在等待系统回传。手工内容不作为设备身份认证凭据。"
+        : "已接收本次确认流程的数据。CMS 签名校验只验证报文完整性，不等同于 Apple 身份链认证；请勿用于设备身份认证。";
+    for (const button of document.querySelectorAll("[data-copy]")) {
+      button.disabled = !device[button.dataset.copy] || state.busy;
+    }
+    ui.manualSection.hidden = !session;
+    renderManualFields(device, session, demo);
+    ui.saveDetails.disabled = state.busy || state.refreshing || !session;
+    ui.copyAll.disabled = !hasDetails || state.busy;
+    ui.clearData.disabled = !session || state.busy || state.refreshing;
+    ui.reload.disabled = state.busy || state.refreshing;
+    ui.emptyReload.disabled = state.busy || state.refreshing;
+    ui.demoRetry.disabled = state.busy || state.refreshing;
+    renderClock();
+  }
+
+  function schedulePoll() {
+    clearTimeout(state.pollTimer);
+    if (document.hidden) {
+      return;
+    }
+    const interval = state.mode === "demo" ? 10000 : state.session?.state === "waiting" ? 4000 : 15000;
+    state.pollTimer = setTimeout(() => refresh(false), interval);
+  }
+
+  async function refresh(announce = true) {
+    if (state.refreshing || state.busy) {
+      schedulePoll();
+      return;
+    }
+    state.refreshing = true;
+    render();
+    const wasDemo = state.mode === "demo";
+    try {
+      if (state.pendingDelete) {
+        await api("/api/session", { method: "DELETE" });
+        state.pendingDelete = false;
+      }
+      const data = await api("/api/session");
+      const next = normalizeSession(data.session);
+      const previousState = state.session?.state;
+      if (!next || next.expiresAt !== state.session?.expiresAt) {
+        resetManualFields();
+      }
+      state.mode = "live";
+      state.session = next;
+      state.demoSession = null;
+      if (!next || (next.paired !== true && state.pairUrl)) {
+        state.pairUrl = "";
+        state.qrExpiresAt = 0;
+      }
+      if (next) {
+        state.expired = false;
+      }
+      if (wasDemo) {
+        flash("采集服务已恢复，当前显示服务端结果。本地演示内容不会自动提交。");
+      } else if (next?.state === "received" && previousState !== "received") {
+        flash("已收到本次设备信息，可以复制查看。IMEI 未返回时可手动补录。");
+      } else if (announce) {
+        flash(next ? "已重新加载本次会话。" : "已连接服务，当前还没有采集会话。");
+      }
+    } catch (error) {
+      enterDemo();
+      if (announce) {
+        flash(`${error.message}。已切换到明确标注的本地演示。`, true);
+      }
+    } finally {
+      state.refreshing = false;
+      render();
+      schedulePoll();
+    }
+  }
+
+  function safeProfileUrl(value) {
+    const url = new URL(value || "/profile.mobileconfig", window.location.origin);
+    if (url.origin !== window.location.origin || url.pathname !== "/profile.mobileconfig" || url.search || url.hash) {
+      throw new ApiError("服务端返回的确认文件地址不符合预期");
+    }
+    return url.href;
+  }
+
+  async function startCapture() {
+    if (!ui.consent.checked || state.busy || state.refreshing) {
+      return;
+    }
+    if (state.mode === "demo") {
+      state.demoSession = newDemoSession();
+      render();
+      flash("已生成本地演示内容。没有下载描述文件，也没有读取真实设备信息。");
+      return;
+    }
+    if (!mobileSafari) {
+      flash("真实采集需要在 iPhone / iPad 的 Safari 中发起。请复制本站地址到手机打开。", true);
+      return;
+    }
+    state.busy = true;
+    state.operation = "start";
+    render();
+    try {
+      const pairToken = state.incomingPair;
+      const resumePairedPhone = !pairToken && state.session?.paired && state.session.role === "phone"
+        && state.session.canDownload === true && state.session.state === "waiting";
+      const data = resumePairedPhone ? { session: state.session }
+        : pairToken ? await api("/api/pair/claim", { method: "POST", body: { token: pairToken, consent: true } })
+          : await api("/api/session", { method: "POST", body: { consent: true } });
+      const profileUrl = safeProfileUrl(data.session?.profileUrl || data.profileUrl);
+      state.session = normalizeSession(data.session);
+      resetManualFields();
+      state.incomingPair = "";
+      state.mode = "live";
+      state.expired = false;
+      flash("确认文件已准备好。下载后打开系统设置，检查内容并手动确认安装。");
+      window.location.assign(profileUrl);
+    } catch (error) {
+      if (error.status >= 400 && error.status < 500) {
+        flash(error.message, true);
+      } else {
+        enterDemo();
+        flash(`${error.message}。未下载确认文件；当前为本地演示。`, true);
+      }
+    } finally {
+      state.busy = false;
+      state.operation = "";
+      render();
+      schedulePoll();
+    }
+  }
+
+  async function saveDetails(event) {
+    event.preventDefault();
+    if (state.busy || state.refreshing || !currentSession()) {
+      return;
+    }
+    const device = currentSession().device || {};
+    const changed = {};
+    for (const key of manualKeys) {
+      const input = ui[manualId(key)];
+      const value = input.value.trim();
+      if (canEditField(device, key) && value && value !== (device[key] || "")) {
+        changed[key] = value;
+      }
+    }
+    if (!Object.keys(changed).length) {
+      flash("本次没有新增或更改的非空内容；系统已返回的值不会被覆盖。");
+      return;
+    }
+    for (const key of ["imei", "imei2"]) {
+      if (changed[key] && !/^[0-9]{15}$/.test(changed[key])) {
+        flash(`${key.toUpperCase()} 应为 15 位数字，请按设备设置中的内容填写。`, true);
+        ui[manualId(key)].focus();
+        return;
+      }
+    }
+    if (state.mode === "demo") {
+      for (const [key, value] of Object.entries(changed)) {
+        state.demoSession.device[key] = value;
+        state.demoSession.device.fieldSources[key] = "manual";
+      }
+      if (changed.imei) {
+        state.demoSession.device.imeiSource = "manual";
+        state.demoSession.device.imeiStatus = "provided";
+      }
+      resetManualFields();
+      render();
+      flash("已保存到本页演示内容，没有上传。连接恢复后将以服务端结果为准。");
+      return;
+    }
+    state.busy = true;
+    state.operation = "details";
+    render();
+    try {
+      const data = await api("/api/session/details", { method: "POST", body: { fields: changed } });
+      state.session = normalizeSession(data.session);
+      resetManualFields();
+      flash("补录信息已保存，来源已标注为「手动填写」。系统回传的值保持只读。");
+    } catch (error) {
+      if (!error.status || error.status >= 500) {
+        enterDemo();
+        flash(`${error.message}。本次保存未确认，请恢复连接后核对；刚填写的内容未写入演示，也未保存在本机。`, true);
+      } else {
+        flash(error.message, true);
+      }
+    } finally {
+      state.busy = false;
+      state.operation = "";
+      render();
+      schedulePoll();
+    }
+  }
+
+  async function clearData() {
+    if (state.busy || state.refreshing || !currentSession()) {
+      return;
+    }
+    if (state.mode === "demo") {
+      state.demoSession = null;
+      resetManualFields();
+      render();
+      flash("本页演示数据已清空。此操作没有删除服务端数据。");
+      return;
+    }
+    state.busy = true;
+    render();
+    try {
+      await api("/api/session", { method: "DELETE" });
+      state.session = null;
+      state.pairUrl = "";
+      state.qrExpiresAt = 0;
+      state.expired = false;
+      ui.consent.checked = false;
+      resetManualFields();
+      flash("应用中的本次会话数据已清除。Cloudflare 平台备份按其保留策略处理。");
+    } catch (error) {
+      state.pendingDelete = true;
+      enterDemo();
+      state.demoSession = null;
+      resetManualFields();
+      flash("网络不可用，已隐藏当前页面的设备信息；服务端删除尚未确认。页面会在连接恢复后优先重试删除。", true);
+    } finally {
+      state.busy = false;
+      render();
+      schedulePoll();
+    }
+  }
+
+  function restoreCopyFocus() {
+    const target = copyTrigger;
+    copyTrigger = null;
+    if (target?.isConnected && !target.disabled) {
+      target.focus();
+    }
+  }
+
+  function showCopyDialog(title, message, error = false, trigger = document.activeElement) {
+    copyTrigger = trigger;
+    ui.copyDialogTitle.textContent = title;
+    ui.copyDialogMessage.textContent = message;
+    ui.copyDialog.dataset.error = String(error);
+    if (typeof ui.copyDialog.showModal === "function") {
+      try {
+        if (!ui.copyDialog.open) {
+          ui.copyDialog.showModal();
+        }
+        ui.copyDialogClose.focus();
+        return;
+      } catch {}
+    }
+    // 较旧浏览器仍使用真正的系统对话框，不把失败当成复制成功。
+    window.alert(`${title}\n\n${message}`);
+    restoreCopyFocus();
+  }
+
+  async function copyText(value, success) {
+    const trigger = document.activeElement;
+    if (!value) {
+      showCopyDialog("无法复制", "这项信息尚未返回，没有可复制的值。", true, trigger);
+      return;
+    }
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = value;
+        textArea.className = "clipboard-fallback";
+        textArea.setAttribute("aria-label", "待复制内容");
+        document.body.append(textArea);
+        textArea.select();
+        const copied = document.execCommand("copy");
+        textArea.remove();
+        if (!copied) {
+          throw new Error("clipboard-unavailable");
+        }
+      }
+      showCopyDialog("复制成功", success, false, trigger);
+    } catch {
+      showCopyDialog("复制失败", "浏览器未允许写入剪贴板，内容没有确认复制成功。请选中需要的文字手动复制。", true, trigger);
+    }
+  }
+
+  function copyAll() {
+    const session = currentSession();
+    if (!session) {
+      return;
+    }
+    const device = session.device;
+    const demo = state.mode === "demo";
+    const lines = [
+      demo ? "JobsDeviceInfo · 本地演示（非真实设备信息）" : "JobsDeviceInfo · 本次设备信息",
+      ...fields.map(({ key, label }) => `${label}：${device[key] || "未返回"}${device[key] ? `（${demo ? "演示 · " : ""}${sourceLabel(fieldSource(device, key), key)}）` : ""}`),
+      demo ? "演示内容未进行设备身份验证。" : "仅用于信息展示，不作为设备身份认证凭据。"
+    ];
+    copyText(lines.join("\n"), demo ? "已复制本地演示内容，包含明确的演示标注。" : "已复制本次设备信息。");
+  }
+
+  ui.consent.addEventListener("change", render);
+  ui.startCapture.addEventListener("click", startCapture);
+  ui.reload.addEventListener("click", () => refresh(true));
+  ui.emptyReload.addEventListener("click", () => refresh(true));
+  ui.demoRetry.addEventListener("click", () => refresh(true));
+  ui.detailsForm.addEventListener("submit", saveDetails);
+  for (const key of manualKeys) {
+    ui[manualId(key)].addEventListener("input", () => {
+      ui[manualId(key)].dataset.edited = "true";
+    });
+  }
+  ui.copyDialog.addEventListener("close", restoreCopyFocus);
+  ui.clearData.addEventListener("click", clearData);
+  ui.copyAll.addEventListener("click", copyAll);
+  ui.generatePair.addEventListener("click", generatePair);
+  ui.copyPair.addEventListener("click", () => copyText(state.pairUrl, "已复制本次配对链接。持有人可加入本次会话并查看结果，请只交给本次采集设备。"));
+  ui.copyPendingPair.addEventListener("click", () => copyText(`${window.location.origin}/#pair=${state.incomingPair}`, "本次配对链接已复制。请粘贴到 Safari；持有人可加入本次会话，请勿转发。"));
+  ui.copyLink.addEventListener("click", () => {
+    const origin = state.publicOrigin;
+    if (!origin) {
+      showCopyDialog("无法复制", "尚无可供手机访问的线上地址，请先运行一键部署。", true);
+      return;
+    }
+    copyText(`${origin}/`, "本站地址已复制，请在 iPhone / iPad 的 Safari 中打开。普通网址不包含本次配对码。");
+  });
+  for (const button of document.querySelectorAll("[data-copy]")) {
+    button.addEventListener("click", () => {
+      const key = button.dataset.copy;
+      const value = currentSession()?.device?.[key];
+      const label = fields.find((field) => field.key === key)?.label || key;
+      copyText(value, state.mode === "demo" ? `已复制演示「${label}」，不是当前设备的真实信息。` : `已复制「${label}」。`);
+    });
+  }
+  ui.downloadAgain.addEventListener("click", (event) => {
+    if (state.mode !== "live" || !state.session || !mobileSafari || state.session.expiresAt <= Date.now()) {
+      event.preventDefault();
+      flash("请重新发起一次设备采集。", true);
+    }
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      clearTimeout(state.pollTimer);
+    } else {
+      refresh(false);
+    }
+  });
+  window.addEventListener("online", () => refresh(false));
+  window.addEventListener("pagehide", () => clearTimeout(state.pollTimer));
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) {
+      refresh(false);
+    }
+  });
+  setInterval(() => {
+    if (state.pairUrl && state.qrExpiresAt <= Date.now()) {
+      state.pairUrl = "";
+      state.qrExpiresAt = 0;
+      render();
+    }
+    const session = state.session;
+    if (state.mode === "live" && session && session.expiresAt <= Date.now()) {
+      state.session = null;
+      state.pairUrl = "";
+      state.qrExpiresAt = 0;
+      state.expired = true;
+      ui.consent.checked = false;
+      resetManualFields();
+      render();
+      flash("本次会话已到期，结果已不可查询。需要时可以重新开始采集。");
+      refresh(false);
+    } else {
+      renderClock();
+    }
+  }, 1000);
+
+  render();
+  if (rawPairToken !== null && !validPairToken) {
+    flash("配对链接格式不正确，请回到电脑重新生成并扫码。", true);
+  }
+  Promise.all([refresh(false), loadPublicOrigin()]).then(() => {
+    if (startPairRequested) {
+      if (state.session?.state === "received") {
+        flash("已恢复本次设备信息。需要采集另一部设备时，请点击开始新的扫码采集。");
+      } else {
+        generatePair();
+      }
+    }
+  });
+})();

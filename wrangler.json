@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "jobs-device-info",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-28",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "jobs-device-info",
+    "database_id": "c08f3d2e-6a31-417e-a004-121a9989b43a",
+    "migrations_dir": "migrations"
+  }],
+  "triggers": { "crons": ["*/15 * * * *"] },
+  "observability": { "enabled": false }
+}

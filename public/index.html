@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="api-timeout-ms" content="3000">
+    <meta name="description" content="查看苹果设备回传的信息，并补录关于本机字段；每项注明来源，支持点击复制。">
+    <title>JobsDeviceInfo · 设备信息</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#capture">跳到设备采集</a>
+    <div class="page-shell">
+      <header class="site-header">
+        <a class="brand" href="/" aria-label="JobsDeviceInfo 首页"><span class="brand-mark" aria-hidden="true">J.</span><span>Jobs<span class="brand-light">DeviceInfo</span></span></a>
+        <div class="connection" id="connection" role="status"><span class="status-dot" aria-hidden="true"></span><span id="connectionLabel">正在连接服务</span></div>
+      </header>
+
+      <main>
+        <section class="intro" aria-labelledby="pageTitle">
+          <div>
+            <p class="eyebrow">YOUR DEVICE, CLEARLY.</p>
+            <h1 id="pageTitle">设备信息，<br class="mobile-break"><span>清楚一点。</span></h1>
+            <p class="intro-copy">经过你的系统确认，查看设备标识与关于本机信息，<br class="desktop-break">系统未返回的项目可手动补录，并注明来源。</p>
+          </div>
+          <div class="intro-note"><span class="note-index">01 — 03</span><p>由你发起 · 由系统确认<br>本次结果 15 分钟后不可访问</p></div>
+        </section>
+
+        <div class="demo-banner" id="demoBanner" hidden role="status"><strong>本地演示</strong><span>暂时无法连接采集服务。下方示例可操作，但不是这台设备的真实标识；连接恢复后自动显示服务端结果。</span><button id="demoRetry" type="button" class="text-button">重新连接</button></div>
+        <div class="flash" id="flash" role="status" aria-live="polite" hidden></div>
+
+        <div class="workspace">
+          <section class="capture-card card" id="capture" aria-labelledby="captureTitle">
+            <div class="section-heading"><div><p class="eyebrow">START HERE</p><h2 id="captureTitle">开始一次设备采集</h2></div><span class="pill">iPhone / iPad</span></div>
+            <p class="support-note" id="supportNote">请使用 iPhone 或 iPad 的 Safari 打开本站。</p>
+            <section class="pair-section" id="pairSection" aria-labelledby="pairTitle" hidden>
+              <div class="pair-heading"><div><p class="eyebrow">SCAN &amp; CONNECT</p><h3 id="pairTitle">手机扫码，电脑同步</h3></div><span class="pill">本次会话</span></div>
+              <p class="pair-intro" id="pairIntro">生成二维码后，用 iPhone / iPad 扫码。手机确认并回传后，本页自动显示同一份结果。</p>
+              <div class="qr-panel" id="qrPanel" hidden>
+                <div class="qr-frame"><canvas id="pairQr" width="224" height="224" role="img" aria-label="本次设备信息采集的配对二维码"></canvas></div>
+                <div class="qr-status"><strong id="qrState">等待手机扫码</strong><span id="qrExpiry"></span></div>
+                <button class="text-button" id="copyPair" type="button">复制本次配对链接</button>
+                <p class="pair-access">配对链接持有人可加入本次会话并查看结果，请只交给本次采集设备。</p>
+              </div>
+              <button class="secondary-button pair-generate" id="generatePair" type="button">生成扫码二维码</button>
+              <p class="pair-footnote" id="pairFootnote">生成入口不会读取手机信息。手机仍须勾选同意并手动安装描述文件。</p>
+            </section>
+            <div class="pair-notice" id="pairNotice" role="status" hidden><strong>已打开电脑配对入口</strong><p>勾选同意并确认描述文件后，结果会同时显示在本机和发起配对的电脑页面。</p><button class="text-button" id="copyPendingPair" type="button" hidden>复制本次配对链接到 Safari</button></div>
+            <ol class="steps">
+              <li><span class="step-number">01</span><div><h3>下载设备确认文件</h3><p>勾选下方同意项，下载苹果描述文件。网页本身无法直接读取这些编号。</p></div></li>
+              <li><span class="step-number">02</span><div><h3>在系统设置中确认</h3><p>打开「设置」→「已下载描述文件」，检查信息后点「安装」。下载后请在 8 分钟内完成。</p></div></li>
+              <li><span class="step-number">03</span><div><h3>回到这里查看结果</h3><p>系统将信息发送给本站。页面会自动更新，也可以手动重新加载。</p></div></li>
+            </ol>
+
+            <label class="consent" id="consentLabel"><input id="consent" type="checkbox"><span id="consentText">我同意本次将系统允许回传的 UDID、IMEI、ICCID、MEID 和基础设备信息发送到本站的 Cloudflare 后端；其它项目仅在实际回传或我手动补录后展示，结果 <strong>15 分钟后不可访问</strong>。<span id="pairedConsent" hidden>本次结果也会显示在发起配对的电脑页面。</span></span></label>
+            <button class="primary-button" id="startCapture" type="button" disabled><span id="startLabel">下载设备确认文件</span><span aria-hidden="true">↗</span></button>
+            <a class="download-again" id="downloadAgain" href="/profile.mobileconfig" hidden>再次下载本次确认文件</a>
+            <p class="action-footnote" id="actionFootnote">需要你在手机上手动确认。不会因为打开网页就自动采集。</p>
+            <div class="share-row"><div><strong>现在用的是电脑？</strong><p>复制地址，在你的 iPhone / iPad Safari 中打开。</p></div><button id="copyLink" class="secondary-button small" type="button">复制地址</button></div>
+          </section>
+
+          <section class="result-card card" aria-labelledby="resultTitle">
+            <div class="section-heading"><div><p class="eyebrow">DEVICE DETAILS</p><h2 id="resultTitle">本次设备信息</h2></div><span class="pill result-pill" id="resultTag">等待采集</span></div>
+            <div class="result-meta"><span id="sessionTime">完成系统确认后，结果显示在这里</span><button class="text-button" id="reload" type="button">重新加载</button></div>
+
+            <div class="empty-state" id="emptyState"><span class="empty-symbol" aria-hidden="true"><span></span></span><h3 id="emptyTitle">还没有设备信息</h3><p id="emptyCopy">从左侧开始采集。只展示本次会话回传的信息。</p><button class="secondary-button small" id="emptyReload" type="button">重新加载</button></div>
+
+            <div id="resultDetails" hidden>
+              <p class="copy-hint">点击项目名称或数值即可复制；未返回的项目不可复制。</p>
+              <div class="identifier-field"><div class="field-label"><button class="field-name" type="button" data-copy="udid" aria-label="复制 UDID 的值" disabled>UDID</button><span id="udidSource" class="source-label" hidden></span></div><button class="identifier-value copy-value" id="udidValue" type="button" data-copy="udid" aria-label="复制 UDID 的值" disabled>未返回</button><p class="field-help" id="udidHelp">苹果设备的唯一标识</p></div>
+              <div class="identifier-field"><div class="field-label"><button class="field-name" type="button" data-copy="imei" aria-label="复制 IMEI 的值" disabled>IMEI</button><span id="imeiSource" class="source-label" hidden></span></div><button class="identifier-value copy-value" id="imeiValue" type="button" data-copy="imei" aria-label="复制 IMEI 的值" disabled>未返回</button><p class="field-help" id="imeiHelp">并非所有设备或系统都会回传 IMEI；Wi-Fi 版设备没有 IMEI。</p></div>
+              <dl class="device-facts">
+                <div><dt><button class="field-name" type="button" data-copy="imei2" aria-label="复制 IMEI2 的值" disabled>IMEI2</button><span id="imei2Source" class="source-label" hidden></span></dt><dd><button class="copy-value fact-value" id="imei2Value" type="button" data-copy="imei2" aria-label="复制 IMEI2 的值" disabled>未返回</button></dd></div>
+                <div><dt><button class="field-name" type="button" data-copy="iccid" aria-label="复制 ICCID 的值" disabled>ICCID</button><span id="iccidSource" class="source-label" hidden></span></dt><dd><button class="copy-value fact-value" id="iccidValue" type="button" data-copy="iccid" aria-label="复制 ICCID 的值" disabled>未返回</button></dd></div>
+                <div><dt><button class="field-name" type="button" data-copy="meid" aria-label="复制 MEID 的值" disabled>MEID</button><span id="meidSource" class="source-label" hidden></span></dt><dd><button class="copy-value fact-value" id="meidValue" type="button" data-copy="meid" aria-label="复制 MEID 的值" disabled>未返回</button></dd></div>
+                <div><dt><button class="field-name" type="button" data-copy="osVersion" aria-label="复制系统版本的值" disabled>系统版本</button><span id="osVersionSource" class="source-label" hidden></span></dt><dd><button class="copy-value fact-value" id="osVersionValue" type="button" data-copy="osVersion" aria-label="复制系统版本的值" disabled>未返回</button></dd></div>
+                <div><dt><button class="field-name" type="button" data-copy="modelName" aria-label="复制型号名称的值" disabled>型号名称</button><span id="modelNameSource" class="source-label" hidden></span></dt><dd><button class="copy-value fact-value" id="modelNameValue" type="button" data-copy="modelName" aria-label="复制型号名称的值" disabled>未返回</button></dd></div>
+                <div><dt><button class="field-name" type="button" data-copy="serial" aria-label="复制序列号的值" disabled>序列号</button><span id="serialSource" class="source-label" hidden></span></dt><dd><button class="copy-value fact-value" id="serialValue" type="button" data-copy="serial" aria-label="复制序列号的值" disabled>未返回</button></dd></div>
+                <div><dt><button class="field-name" type="button" data-copy="modelNumber" aria-label="复制型号号码或部件号的值" disabled>型号号码 / 部件号</button><span id="modelNumberSource" class="source-label" hidden></span></dt><dd><button class="copy-value fact-value" id="modelNumberValue" type="button" data-copy="modelNumber" aria-label="复制型号号码或部件号的值" disabled>未返回</button></dd></div>
+                <div><dt><button class="field-name" type="button" data-copy="seid" aria-label="复制 SEID 的值" disabled>SEID</button><span id="seidSource" class="source-label" hidden></span></dt><dd><button class="copy-value fact-value" id="seidValue" type="button" data-copy="seid" aria-label="复制 SEID 的值" disabled>未返回</button></dd></div>
+                <div><dt><button class="field-name" type="button" data-copy="product" aria-label="复制产品型号标识的值" disabled>产品型号标识</button><span id="productSource" class="source-label" hidden></span></dt><dd><button class="copy-value fact-value" id="productValue" type="button" data-copy="product" aria-label="复制产品型号标识的值" disabled>未返回</button></dd></div>
+                <div><dt><button class="field-name" type="button" data-copy="version" aria-label="复制系统构建号的值" disabled>系统构建号</button><span id="versionSource" class="source-label" hidden></span></dt><dd><button class="copy-value fact-value" id="versionValue" type="button" data-copy="version" aria-label="复制系统构建号的值" disabled>未返回</button></dd></div>
+              </dl>
+              <p class="field-help">系统版本与构建号分别展示；“型号映射”和“版本映射”均依据有来源的本地资料推导，不代表系统直接回传。</p>
+              <p class="verification-note" id="verificationNote">采集结果用于查看，不作为设备身份认证凭据。</p>
+            </div>
+
+            <details class="manual-section" id="manualSection" hidden>
+              <summary>补录关于本机信息<span aria-hidden="true">＋</span></summary>
+              <p>在手机「设置 → 通用 → 关于本机」中核对，只填写需要补充或修改的项目。手动内容会标明来源；系统已返回的值只读，型号映射可手动更正。留空不会删除已有值。</p>
+              <form id="detailsForm" class="manual-form">
+                <div class="manual-fields">
+                  <div><label class="input-label" for="manualImei">IMEI</label><input id="manualImei" name="imei" type="text" inputmode="numeric" autocomplete="off" minlength="15" maxlength="15" pattern="[0-9]{15}" placeholder="15 位数字"><small id="manualImeiStatus" class="input-status"></small></div>
+                  <div><label class="input-label" for="manualImei2">IMEI2</label><input id="manualImei2" name="imei2" type="text" inputmode="numeric" autocomplete="off" minlength="15" maxlength="15" pattern="[0-9]{15}" placeholder="15 位数字"><small id="manualImei2Status" class="input-status"></small></div>
+                  <div><label class="input-label" for="manualIccid">ICCID</label><input id="manualIccid" name="iccid" type="text" inputmode="numeric" autocomplete="off" maxlength="128" placeholder="按关于本机填写"><small id="manualIccidStatus" class="input-status"></small></div>
+                  <div><label class="input-label" for="manualMeid">MEID</label><input id="manualMeid" name="meid" type="text" autocomplete="off" maxlength="128" placeholder="按关于本机填写"><small id="manualMeidStatus" class="input-status"></small></div>
+                  <div><label class="input-label" for="manualOsVersion">系统版本</label><input id="manualOsVersion" name="osVersion" type="text" autocomplete="off" maxlength="128" placeholder="系统版本，不是构建号"><small id="manualOsVersionStatus" class="input-status"></small></div>
+                  <div><label class="input-label" for="manualModelName">型号名称</label><input id="manualModelName" name="modelName" type="text" autocomplete="off" maxlength="128" placeholder="设备显示的型号名称"><small id="manualModelNameStatus" class="input-status"></small></div>
+                  <div><label class="input-label" for="manualSerial">序列号</label><input id="manualSerial" name="serial" type="text" autocomplete="off" maxlength="128" placeholder="按关于本机填写"><small id="manualSerialStatus" class="input-status"></small></div>
+                  <div><label class="input-label" for="manualModelNumber">型号号码 / 部件号</label><input id="manualModelNumber" name="modelNumber" type="text" autocomplete="off" maxlength="128" placeholder="按关于本机填写"><small id="manualModelNumberStatus" class="input-status"></small></div>
+                  <div><label class="input-label" for="manualSeid">SEID</label><input id="manualSeid" name="seid" type="text" autocomplete="off" maxlength="128" placeholder="按关于本机填写"><small id="manualSeidStatus" class="input-status"></small></div>
+                </div>
+                <button id="saveDetails" class="secondary-button" type="submit">保存补录信息</button>
+              </form>
+            </details>
+
+            <div class="result-actions"><button class="secondary-button" id="copyAll" type="button" disabled>复制全部信息</button><button class="text-button danger" id="clearData" type="button" disabled>清除我的数据</button></div>
+          </section>
+        </div>
+
+        <section class="boundaries" aria-label="采集范围说明"><article><span>01 / 明确确认</span><h3>每次采集，由你决定</h3><p>这是苹果 Profile Service 的设备确认流程，不是网页静默读取，也不等同于加入 MDM 设备管理。</p></article><article><span>02 / 如实显示</span><h3>没有返回，就不编造</h3><p>可选字段可能没有返回。系统回传、手动填写与本地资料映射分别标明；Android 不支持本描述文件流程。</p></article><article><span>03 / 短期结果</span><h3>查看完，可以随时清除</h3><p>应用仅保留短期会话；到期后不可查询。Cloudflare 平台备份的保留周期以平台策略为准。</p></article></section>
+      </main>
+
+      <footer class="site-footer"><span>JobsDeviceInfo <span class="footer-divider">/</span> 设备信息采集工具</span><span>由你确认，才开始。</span></footer>
+      <noscript><div class="noscript">此工具需要 JavaScript 连接采集服务并显示结果，请启用后重新加载。</div></noscript>
+    </div>
+    <dialog class="copy-dialog" id="copyDialog" aria-labelledby="copyDialogTitle" aria-describedby="copyDialogMessage">
+      <form method="dialog"><p class="eyebrow">CLIPBOARD</p><h2 id="copyDialogTitle">复制成功</h2><p id="copyDialogMessage"></p><button class="secondary-button" id="copyDialogClose" type="submit" autofocus>知道了</button></form>
+    </dialog>
+  </body>
+</html>

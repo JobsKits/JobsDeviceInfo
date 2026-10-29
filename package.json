@@ -1,0 +1,30 @@
+{
+  "name": "jobs-device-info",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Jobs 自托管 Apple 设备标识采集站，运行于 Cloudflare Workers 与 D1。",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "wrangler dev --ip 127.0.0.1 --port 8787",
+    "test": "node --test tests/*.test.mjs",
+    "build:assets": "node scripts/build-assets.mjs",
+    "build:pages": "node scripts/build-pages.mjs",
+    "build": "npm run build:assets && wrangler deploy --dry-run --outdir .build",
+    "db:local": "wrangler d1 migrations apply DB --local",
+    "deploy": "zsh './【MacOS】🚀部署到Cloudflare.command'"
+  },
+  "dependencies": {
+    "asn1js": "4.0.0",
+    "fast-xml-parser": "5.11.2",
+    "pkijs": "4.0.1",
+    "qrcode": "1.5.4"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "jsqr": "1.4.0",
+    "wrangler": "4.154.0"
+  }
+}
