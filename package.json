@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Jobs 自托管 Apple 设备标识采集站，运行于 Cloudflare Workers 与 D1。",
+  "description": "Jobs 自托管 iPhone、Android、鸿蒙设备信息采集站，运行于 Cloudflare Workers 与 D1。",
   "engines": {
     "node": ">=22.13.0"
   },

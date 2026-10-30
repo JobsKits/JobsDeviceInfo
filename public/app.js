@@ -5,6 +5,7 @@
   const timeoutSetting = Number(document.querySelector('meta[name="api-timeout-ms"]')?.content);
   const API_TIMEOUT_MS = Number.isFinite(timeoutSetting) && timeoutSetting >= 1000 ? timeoutSetting : 3000;
   const fields = [
+    ["platformName", "设备系统"], ["browserName", "浏览器"], ["screenSize", "屏幕尺寸"], ["language", "浏览器语言"],
     ["udid", "UDID"], ["imei", "IMEI"], ["imei2", "IMEI2"], ["iccid", "ICCID"], ["meid", "MEID"],
     ["osVersion", "系统版本"], ["modelName", "型号名称"], ["serial", "序列号"],
     ["modelNumber", "型号号码 / 部件号"], ["seid", "SEID"], ["product", "产品型号标识"], ["version", "系统构建号"]
@@ -13,6 +14,8 @@
   const manualId = (key) => `manual${key.charAt(0).toUpperCase()}${key.slice(1)}`;
   const ids = [
     "connection", "connectionLabel", "demoBanner", "demoRetry", "flash", "supportNote", "consent",
+    "platformBadge", "captureOptions", "platformSelect", "captureMethod", "captureMethodLabel", "capabilityNote", "consentDescription", "resultCapability", "useThisDevice",
+    "step1Title", "step1Copy", "step2Title", "step2Copy",
     "startCapture", "startLabel", "downloadAgain", "actionFootnote", "copyLink", "resultTag", "sessionTime",
     "reload", "emptyState", "emptyTitle", "emptyCopy", "emptyReload", "resultDetails", "udidHelp", "imeiHelp", "verificationNote",
     "manualSection", "detailsForm", "saveDetails", "copyAll", "clearData", "consentLabel", "pairedConsent",
@@ -22,10 +25,9 @@
     ...manualKeys.flatMap((key) => [manualId(key), `${manualId(key)}Status`])
   ];
   const ui = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
-  const appleMobile = /iPhone|iPad|iPod/.test(navigator.userAgent)
-    || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-  const mobileSafari = appleMobile && /Safari/.test(navigator.userAgent)
-    && !/CriOS|FxiOS|EdgiOS|OPiOS|MicroMessenger|FBAN|FBAV/.test(navigator.userAgent);
+  const detected = JobsDeviceBrowser.detect(navigator);
+  const mobileSafari = detected.safari;
+  const platformNames = { ios: "iOS / iPadOS", android: "Android", harmonyos: "鸿蒙", unknown: "未识别系统" };
   const localPreview = /^(localhost|127(?:\.[0-9]+){3}|\[::1\])$/.test(window.location.hostname)
     || window.location.protocol !== "https:";
   const fragment = new URLSearchParams(window.location.hash.slice(1));
@@ -51,9 +53,38 @@
     qrExpiresAt: 0,
     qrError: "",
     publicOrigin: localPreview ? "" : window.location.origin,
-    publicCheckDone: !localPreview
+    publicCheckDone: !localPreview,
+    forceCapture: false
   };
   let copyTrigger = null;
+
+  function capturePlatform() {
+    return ui.platformSelect.value === "auto" ? detected.platform : ui.platformSelect.value;
+  }
+
+  function usesProfile() {
+    return capturePlatform() === "ios" && mobileSafari && ui.captureMethod.value === "profile";
+  }
+
+  function missingReason(key, session) {
+    if (!session || session.state !== "received") return "待采集";
+    const device = session.device || {};
+    const browser = session.verification === "browser-reported";
+    if (key === "udid" && device.platform && device.platform !== "ios") return "不适用（苹果专用）";
+    if (browser && ["udid", "imei", "imei2", "iccid", "meid", "serial", "modelNumber", "seid", "version"].includes(key)) {
+      return "浏览器无读取权限";
+    }
+    if (["browserName", "screenSize", "language"].includes(key)) return "此采集方式未提供";
+    if (key === "imei" && device.imeiStatus === "unrecognized_format") return "回传格式无法识别";
+    if (!browser && ["imei2", "modelNumber", "seid"].includes(key)) return "当前系统采集接口不提供";
+    if (key === "iccid") {
+      return { empty: "系统返回空值", unsupported_type: "系统返回类型不支持", unrecognized_format: "回传格式无法识别" }[device.iccidStatus]
+        || "系统未提供（受 SIM / 系统限制）";
+    }
+    if (browser && key === "osVersion") return device.platform === "harmonyos" ? "浏览器未公开鸿蒙版本" : "浏览器未公开真实版本";
+    if (browser && ["modelName", "product"].includes(key)) return "浏览器未公开具体型号";
+    return "本次系统未提供";
+  }
 
   class ApiError extends Error {
     constructor(message, status = 0) {
@@ -170,7 +201,7 @@
       state.expired = false;
       state.pendingDelete = false;
       await paintPairQr(pairUrl);
-      flash("二维码已生成。请用 iPhone / iPad 扫码并在 Safari 中确认采集；手机回传后，电脑本页会自动显示结果。");
+      flash("二维码已生成。请用 iPhone、Android 或鸿蒙手机扫码，确认采集后，电脑本页会自动显示结果。");
     } catch (error) {
       state.pairUrl = "";
       state.qrExpiresAt = 0;
@@ -199,13 +230,17 @@
       throw new ApiError("服务端会话格式无法解析");
     }
     const device = {};
-    for (const key of [...fields.map((field) => field.key), "imeiSource", "imeiStatus"]) {
+    for (const key of [...fields.map((field) => field.key), "imeiSource", "imeiStatus", "iccidStatus", "platform", "platformSource"]) {
       device[key] = typeof value.device?.[key] === "string" ? value.device[key].slice(0, 256) : "";
+    }
+    const iccidAvailability = value.device?.fieldAvailability?.iccid;
+    if (["not_returned", "unsupported_type", "empty", "provided", "unrecognized_format"].includes(iccidAvailability)) {
+      device.iccidStatus = iccidAvailability;
     }
     device.fieldSources = {};
     for (const { key } of fields) {
       const source = value.device?.fieldSources?.[key];
-      if (["profile", "manual", "derived"].includes(source)) {
+      if (["profile", "manual", "derived", "browser", "browser-hint", "selected"].includes(source)) {
         device.fieldSources[key] = source;
       }
     }
@@ -221,22 +256,28 @@
   }
 
   function newDemoSession() {
+    const appleDemo = capturePlatform() === "ios";
     return {
       state: "received",
       expiresAt: Date.now() + 15 * 60 * 1000,
       receivedAt: new Date().toISOString(),
       verification: "demo",
       device: {
-        udid: "演示 UDID · 非真实设备编号",
+        platform: capturePlatform(),
+        platformName: `${platformNames[capturePlatform()]}（本地演示）`,
+        browserName: "演示浏览器",
+        screenSize: "演示屏幕尺寸",
+        language: "演示语言",
+        udid: appleDemo ? "演示 UDID · 非真实设备编号" : "",
         imei: "",
-        product: "iPhone（本地演示）",
-        version: "演示构建号",
+        product: appleDemo ? "iPhone（本地演示）" : "",
+        version: appleDemo ? "演示构建号" : "",
         osVersion: "演示系统版本",
         modelName: "演示型号名称",
-        serial: "演示序列号",
-        modelNumber: "演示型号号码",
+        serial: "",
+        modelNumber: "",
         imeiSource: "",
-        fieldSources: { udid: "profile", product: "profile", version: "profile", osVersion: "manual", modelName: "derived", serial: "profile", modelNumber: "manual" }
+        fieldSources: { platformName: "browser", browserName: "browser", screenSize: "browser", language: "browser", udid: "profile", product: "profile", version: "profile", osVersion: "browser", modelName: "browser" }
       }
     };
   }
@@ -268,7 +309,7 @@
 
   function fieldSource(device, key) {
     const source = device.fieldSources?.[key];
-    if (["profile", "manual", "derived"].includes(source)) {
+    if (["profile", "manual", "derived", "browser", "browser-hint", "selected"].includes(source)) {
       return source;
     }
     return key === "imei" && ["profile", "manual"].includes(device.imeiSource) ? device.imeiSource : "";
@@ -278,12 +319,12 @@
     if (source === "derived") {
       return key === "modelName" ? "型号映射" : key === "osVersion" ? "版本映射" : "资料映射";
     }
-    return { profile: "系统回传", manual: "手动填写" }[source] || "来源未标明";
+    return { profile: "系统回传", manual: "手动填写", browser: "浏览器报告", "browser-hint": "浏览器提示（UA-CH）", selected: "用户选择" }[source] || "来源未标明";
   }
 
   function canEditField(device, key) {
     const source = fieldSource(device, key);
-    return !device[key] || source === "manual" || (key === "modelName" && source === "derived");
+    return !device[key] || ["manual", "browser", "browser-hint", "derived"].includes(source);
   }
 
   function resetManualFields() {
@@ -307,7 +348,7 @@
       }
       const description = readOnly ? `${sourceLabel(source, key)}，只读`
         : source === "derived" ? `${sourceLabel(source, key)}，可手动更正`
-          : source === "manual" ? "手动填写，可修改" : "尚未返回，可补录";
+          : source === "manual" ? "手动填写，可修改" : source.startsWith("browser") ? "浏览器报告，可更正" : "尚未获取，可补录";
       ui[`${manualId(key)}Status`].textContent = `${demo ? "仅本地演示 · " : ""}${description}`;
     }
   }
@@ -325,14 +366,14 @@
       return;
     }
     if (!session) {
-      ui.sessionTime.textContent = state.expired ? "本次会话已到期，请重新发起采集" : "完成系统确认后，结果显示在这里";
+      ui.sessionTime.textContent = state.expired ? "本次会话已到期，请重新发起采集" : "确认采集后，结果显示在这里";
       return;
     }
     const remaining = Math.max(0, Math.ceil((session.expiresAt - Date.now()) / 1000));
     const minutes = String(Math.floor(remaining / 60)).padStart(2, "0");
     const seconds = String(remaining % 60).padStart(2, "0");
-    const waitingLabel = session.paired && session.role === "desktop" ? "等待手机确认并回传" : "等待系统回传";
-    ui.sessionTime.textContent = `${session.state === "received" ? "已收到系统回传" : waitingLabel} · ${minutes}:${seconds} 后到期`;
+    const waitingLabel = session.paired && session.role === "desktop" ? "等待手机确认并回传" : "等待设备回传";
+    ui.sessionTime.textContent = `${session.state === "received" ? "已收到设备信息" : waitingLabel} · ${minutes}:${seconds} 后到期`;
   }
 
   function render() {
@@ -345,19 +386,42 @@
     const hasDetails = Boolean(session && (received || fields.some(({ key }) => device[key])));
     const pairedPhone = Boolean(state.incomingPair || (session?.paired && session.role === "phone"));
     const canDownload = session?.canDownload !== false;
+    const platform = capturePlatform();
+    const profile = usesProfile();
+    const onPhone = detected.mobile || pairedPhone || state.forceCapture;
+    ui.useThisDevice.hidden = onPhone || Boolean(session?.paired && session.role === "desktop");
+    ui.platformSelect.options[0].textContent = `自动识别（${platformNames[detected.platform]}）`;
+    ui.platformBadge.textContent = onPhone ? platformNames[platform] : "三端扫码";
+    ui.captureOptions.hidden = !onPhone && !demo;
+    ui.captureMethodLabel.hidden = !mobileSafari || platform !== "ios";
+    ui.platformSelect.disabled = state.busy || state.refreshing;
+    ui.captureMethod.disabled = state.busy || state.refreshing;
+    ui.capabilityNote.textContent = profile
+      ? "系统确认可读取 UDID 和部分设备标识。IMEI2、型号号码 / 部件号、SEID 未在当前接口开放；ICCID 等取决于系统实际回传。"
+      : "读取浏览器公开的系统、浏览器、屏幕、语言，以及可用的型号与版本。网页无权直接读取 IMEI、ICCID、序列号等硬件编号。鸿蒙 3 可能仅显示 Android 兼容信息，可在上方选择鸿蒙；系统版本仍以浏览器实际公开内容为准。";
     ui.connection.dataset.state = state.mode;
     ui.connectionLabel.textContent = demo ? "本地演示" : state.mode === "live" ? "采集服务已连接" : "正在连接服务";
     ui.demoBanner.hidden = !demo;
-    ui.supportNote.textContent = mobileSafari
-      ? "当前浏览器支持苹果设备确认流程，请检查描述文件内容后再安装。"
-      : appleMobile ? "请将本站地址复制到 Safari 中打开，避免内置浏览器影响描述文件下载。"
-        : "在下方生成二维码，用 iPhone / iPad 的 Safari 打开。手机完成系统确认后，本电脑自动显示结果。";
-    ui.consentLabel.hidden = !appleMobile && !demo;
-    ui.startCapture.hidden = !appleMobile && !demo;
+    ui.supportNote.textContent = !onPhone
+      ? "在下方生成二维码，使用 iPhone、Android 或鸿蒙手机扫码。手机确认采集后，本电脑自动显示结果。"
+      : profile ? "当前 Safari 支持苹果系统确认流程，请检查描述文件内容后再安装。"
+        : platform === "ios" ? "当前使用浏览器基础信息采集。如需 UDID 等设备标识，请复制本站或配对链接到 Safari 中打开。"
+          : "当前使用浏览器基础信息采集。请核对本机系统；内置浏览器读取受限时，可在系统浏览器中打开本次链接。";
+    ui.consentLabel.hidden = !onPhone && !demo;
+    ui.startCapture.hidden = !onPhone && !demo;
     ui.pairedConsent.hidden = !pairedPhone;
     ui.pairNotice.hidden = !pairedPhone;
-    ui.copyPendingPair.hidden = !state.incomingPair || mobileSafari;
-    ui.pairSection.hidden = appleMobile;
+    ui.copyPendingPair.hidden = !state.incomingPair || platform !== "ios" || mobileSafari;
+    ui.pairSection.hidden = onPhone;
+    ui.step1Title.textContent = profile ? "下载设备确认文件" : "核对本机系统与采集范围";
+    ui.step1Copy.textContent = profile ? "勾选下方同意项，下载苹果描述文件。网页本身无法直接读取设备编号。"
+      : "支持 iPhone / iPad、Android、鸿蒙。浏览器可能隐藏真实系统或型号，请先核对系统选择。";
+    ui.step2Title.textContent = profile ? "在系统设置中确认" : "同意并回传可用信息";
+    ui.step2Copy.textContent = profile ? "打开「设置」→「已下载描述文件」，检查信息后点「安装」。下载后请在 8 分钟内完成。"
+      : "手机勾选同意后点击采集，无需安装描述文件。系统或浏览器未开放的字段会逐项说明。";
+    ui.consentDescription.textContent = profile
+      ? "我同意将系统允许回传的 UDID、IMEI、ICCID、MEID 及基础设备信息发送到本站的 Cloudflare 后端，结果 15 分钟后不可访问。"
+      : "我同意将本次浏览器公开的设备与浏览器信息（包括 User-Agent、可用的型号与版本、屏幕尺寸和语言）发送到本站的 Cloudflare 后端，结果 15 分钟后不可访问。";
     ui.generatePair.disabled = state.busy || state.refreshing || !state.publicCheckDone || !state.publicOrigin;
     ui.generatePair.textContent = state.operation === "pair" ? "正在生成二维码…"
       : !state.publicCheckDone ? "正在检测部署地址…"
@@ -367,59 +431,69 @@
     ui.pairIntro.textContent = localPreview
       ? state.publicOrigin ? "将前往已部署网站，生成可供手机访问的二维码。手机确认后，当前电脑标签页自动显示同一份结果。"
         : "本地地址无法供手机直接访问。请先运行一键部署，取得线上 HTTPS 地址后再生成扫码入口。"
-      : "生成二维码后，用 iPhone / iPad 扫码。手机确认并回传后，本页自动显示同一份结果。";
+      : "用 iPhone、Android 或鸿蒙手机扫码。手机确认采集后，本页自动显示同一份结果。";
     ui.pairFootnote.textContent = state.qrError || (session?.paired && session.role === "desktop" && received
       ? "本次手机信息已回传，二维码不再重复使用。开始新的扫码采集将替换当前会话。"
       : session?.paired && session.role === "desktop" && !state.pairUrl
         ? "网页刷新后不会重新显示旧配对链接；需要时请生成新二维码。生成会替换本次旧会话。"
-        : "生成入口不会读取手机信息。手机仍须勾选同意并手动安装描述文件。");
+        : "手机同意后才采集：苹果设备可走系统确认；Android、鸿蒙使用浏览器基础信息采集。");
     ui.qrPanel.hidden = !state.pairUrl || state.qrExpiresAt <= Date.now() || received;
     ui.qrState.textContent = received ? "手机信息已回传" : "等待手机扫码并确认";
     ui.copyPair.disabled = !state.pairUrl || state.busy || received;
     ui.startCapture.disabled = !ui.consent.checked || state.busy || state.refreshing || state.mode === "connecting"
+      || (!demo && !state.incomingPair && session?.paired && received && pairedPhone)
       || (!demo && !state.incomingPair && session?.paired && !canDownload);
-    ui.startLabel.textContent = state.operation === "start" ? "正在准备确认文件…"
+    ui.startLabel.textContent = state.operation === "start" ? profile ? "正在准备确认文件…" : "正在采集并回传…"
       : demo ? "模拟一次采集（仅本地演示）"
-        : pairedPhone && received ? "本次配对采集已完成"
-          : pairedPhone ? "同意并下载本次确认文件" : "下载设备确认文件";
+        : pairedPhone && received && !state.incomingPair ? "本次配对采集已完成"
+          : profile ? pairedPhone ? "同意并下载本次确认文件" : "下载设备确认文件" : "同意并采集基础信息";
     ui.actionFootnote.textContent = demo
       ? "演示操作仅在当前页面生效，不会下载描述文件或读取真实设备编号。"
       : callbackCode ? `系统回传未通过校验（${callbackCode}）。请保留本次会话，修复后再重试安装。`
-      : !appleMobile ? "电脑无需下载描述文件；请保持本页打开，等待手机完成确认与回传。"
-        : pairedPhone && received ? "本次配对采集已完成。重新采集时，请先清除本次会话，再由电脑生成新二维码。"
-          : "需要你在手机上手动确认。不会因为打开网页就自动采集。";
-    ui.downloadAgain.hidden = demo || !session || !mobileSafari || received || state.busy || state.refreshing || !canDownload;
+      : !onPhone ? "请保持本页打开，等待手机确认采集与回传。"
+        : pairedPhone && received && !state.incomingPair ? "本次配对采集已完成。重新采集时，请先清除本次会话，再由电脑生成新二维码。"
+          : "勾选同意并点击后才采集，不会因为打开网页就自动上传。";
+    ui.downloadAgain.hidden = demo || !session || !profile || received || state.busy || state.refreshing || !canDownload;
     ui.resultTag.textContent = demo ? "演示数据" : received ? "已回传" : callbackCode ? "回传未通过" : session ? "等待确认" : state.expired ? "已到期" : "等待采集";
     ui.resultTag.dataset.state = demo ? "demo" : received ? "received" : "waiting";
     ui.emptyState.hidden = hasDetails;
     ui.resultDetails.hidden = !hasDetails;
     ui.emptyTitle.textContent = state.expired && !demo ? "本次采集已到期"
       : callbackCode ? "系统回传未通过校验"
-      : session ? "等待系统回传设备信息" : demo ? "演示数据已清空" : "还没有设备信息";
+      : session ? "等待设备回传信息" : demo ? "演示数据已清空" : "还没有设备信息";
     ui.emptyCopy.textContent = state.expired && !demo ? "结果已不可查询。重新勾选同意项，再开始一次采集。"
       : callbackCode ? `错误码：${callbackCode}。请保留本次会话并将错误码反馈给维护者，可重新加载查看处理结果。`
-      : session?.paired && session.role === "desktop" ? "用手机扫描本页二维码，在 Safari 中同意采集并安装确认文件。手机回传后，此处自动更新。"
-        : session ? "请完成手机设置中的描述文件安装，再返回本站。页面会自动更新。"
+      : session?.paired && session.role === "desktop" ? "使用 iPhone、Android 或鸿蒙手机扫描本页二维码，完成对应采集步骤后，此处自动更新。"
+        : session ? profile ? "请完成手机设置中的描述文件安装，再返回本站。页面会自动更新。" : "请点击采集回传可用信息；网络失败可重试。"
         : demo ? "可以重新模拟一次采集，或重新连接服务获取真实结果。" : "从采集步骤开始。这里只展示本次会话回传的信息。";
     for (const { key } of fields) {
-      setField(ui[`${key}Value`], device[key], key === "imei" && device.imeiStatus === "unrecognized_format" ? "未取得有效 IMEI" : "未返回");
+      setField(ui[`${key}Value`], device[key], missingReason(key, session));
       const source = fieldSource(device, key);
       const badge = ui[`${key}Source`];
       badge.hidden = !device[key];
       badge.textContent = `${demo ? "演示 · " : ""}${sourceLabel(source, key)}`;
       badge.dataset.source = source || "unknown";
     }
-    ui.udidHelp.textContent = demo ? "此文字仅演示展示与复制，不是有效 UDID。" : "苹果设备标识；不会用其他编号替代。";
+    ui.resultCapability.textContent = demo ? "本地演示示例，不代表扫码设备的实际采集能力。"
+      : session?.verification === "browser-reported"
+        ? "本次为浏览器基础信息。系统与型号由浏览器报告或用户选择，可能被隐藏、缩减或修改；不代表硬件校验结果。"
+        : "本次为苹果系统确认采集。部分字段受接口、SIM 与系统限制；未取得的编号无法通过网页自动补齐。";
+    ui.udidHelp.textContent = demo ? "此文字仅演示展示与复制，不是有效 UDID。" : "苹果设备标识；Android、鸿蒙不适用，浏览器基础信息采集无法读取。";
     ui.imeiHelp.textContent = fieldSource(device, "imei") === "manual"
       ? "这项内容由你手动填写，未由系统回传验证。"
       : !device.imei && device.imeiStatus === "unrecognized_format"
         ? "本次系统回传的 IMEI 格式无法识别，未保存该值。可到手机设置查看后手动补录。"
-      : "并非所有设备或系统都会回传 IMEI；Wi-Fi 版设备没有 IMEI。";
+      : session?.verification === "browser-reported" ? "网页没有直接读取 IMEI 的权限。需要编号时可到手机设置核对；手动补录会单独注明来源。"
+        : "并非所有设备或系统都会回传 IMEI；Wi-Fi 版设备没有 IMEI。";
     ui.verificationNote.textContent = demo ? "本地演示没有进行真实设备采集，也没有验证设备身份。"
-      : !received ? "目前仅保存手动填写的内容，UDID 仍在等待系统回传。手工内容不作为设备身份认证凭据。"
+      : session?.verification === "browser-reported" ? "浏览器回传信息未经硬件验证，不能用于设备身份认证。手动更正会单独标注来源。"
+      : !received ? "目前仅保存手动填写的内容，仍在等待设备回传。手工内容不作为设备身份认证凭据。"
         : "已接收本次确认流程的数据。CMS 签名校验只验证报文完整性，不等同于 Apple 身份链认证；请勿用于设备身份认证。";
     for (const button of document.querySelectorAll("[data-copy]")) {
-      button.disabled = !device[button.dataset.copy] || state.busy;
+      const key = button.dataset.copy;
+      const label = fields.find((field) => field.key === key)?.label || key;
+      button.disabled = !device[key] || state.busy;
+      button.setAttribute("aria-label", `${label}：${device[key] || missingReason(key, session)}${device[key] ? "，点击复制" : ""}`);
     }
     ui.manualSection.hidden = !session;
     renderManualFields(device, session, demo);
@@ -473,7 +547,7 @@
       if (wasDemo) {
         flash("采集服务已恢复，当前显示服务端结果。本地演示内容不会自动提交。");
       } else if (next?.state === "received" && previousState !== "received") {
-        flash("已收到本次设备信息，可以复制查看。IMEI 未返回时可手动补录。");
+        flash("已收到本次设备信息，可以复制查看。未获取的项目已注明原因。");
       } else if (announce) {
         flash(next ? "已重新加载本次会话。" : "已连接服务，当前还没有采集会话。");
       }
@@ -507,8 +581,8 @@
       flash("已生成本地演示内容。没有下载描述文件，也没有读取真实设备信息。");
       return;
     }
-    if (!mobileSafari) {
-      flash("真实采集需要在 iPhone / iPad 的 Safari 中发起。请复制本站地址到手机打开。", true);
+    if (state.session?.paired && state.session.state === "received" && !state.incomingPair) {
+      flash("本次配对已完成。需要重新采集时，请由电脑生成新二维码。", true);
       return;
     }
     state.busy = true;
@@ -516,25 +590,35 @@
     render();
     try {
       const pairToken = state.incomingPair;
-      const resumePairedPhone = !pairToken && state.session?.paired && state.session.role === "phone"
+      const resumePairedPhone = !pairToken && state.session && state.session.role === "phone"
         && state.session.canDownload === true && state.session.state === "waiting";
       const data = resumePairedPhone ? { session: state.session }
         : pairToken ? await api("/api/pair/claim", { method: "POST", body: { token: pairToken, consent: true } })
           : await api("/api/session", { method: "POST", body: { consent: true } });
-      const profileUrl = safeProfileUrl(data.session?.profileUrl || data.profileUrl);
       state.session = normalizeSession(data.session);
       resetManualFields();
       state.incomingPair = "";
       state.mode = "live";
       state.expired = false;
-      flash("确认文件已准备好。下载后打开系统设置，检查内容并手动确认安装。");
-      window.location.assign(profileUrl);
+      if (usesProfile()) {
+        const profileUrl = safeProfileUrl(data.session?.profileUrl || data.profileUrl);
+        flash("确认文件已准备好。下载后打开系统设置，检查内容并手动确认安装。");
+        window.location.assign(profileUrl);
+      } else {
+        const browser = await JobsDeviceBrowser.collect(navigator, window.screen, window.devicePixelRatio || 1);
+        const result = await api("/api/session/browser", {
+          method: "POST",
+          body: { consent: true, platform: capturePlatform(), platformSource: ui.platformSelect.value === "auto" ? "detected" : "selected", browser }
+        });
+        state.session = normalizeSession(result.session);
+        flash("可用基础信息已回传；通过电脑二维码进入时，电脑会自动显示相同结果。硬件编号仍受系统权限限制。");
+      }
     } catch (error) {
       if (error.status >= 400 && error.status < 500) {
         flash(error.message, true);
       } else {
         enterDemo();
-        flash(`${error.message}。未下载确认文件；当前为本地演示。`, true);
+        flash(`${error.message}。本次采集尚未确认成功；当前为本地演示，可重新连接后核对或重试。`, true);
       }
     } finally {
       state.busy = false;
@@ -705,13 +789,23 @@
     const demo = state.mode === "demo";
     const lines = [
       demo ? "JobsDeviceInfo · 本地演示（非真实设备信息）" : "JobsDeviceInfo · 本次设备信息",
-      ...fields.map(({ key, label }) => `${label}：${device[key] || "未返回"}${device[key] ? `（${demo ? "演示 · " : ""}${sourceLabel(fieldSource(device, key), key)}）` : ""}`),
+      ...fields.map(({ key, label }) => `${label}：${device[key] || missingReason(key, session)}${device[key] ? `（${demo ? "演示 · " : ""}${sourceLabel(fieldSource(device, key), key)}）` : ""}`),
       demo ? "演示内容未进行设备身份验证。" : "仅用于信息展示，不作为设备身份认证凭据。"
     ];
     copyText(lines.join("\n"), demo ? "已复制本地演示内容，包含明确的演示标注。" : "已复制本次设备信息。");
   }
 
   ui.consent.addEventListener("change", render);
+  ui.useThisDevice.addEventListener("click", () => {
+    state.forceCapture = true;
+    render();
+  });
+  for (const select of [ui.platformSelect, ui.captureMethod]) {
+    select.addEventListener("change", () => {
+      ui.consent.checked = false;
+      render();
+    });
+  }
   ui.startCapture.addEventListener("click", startCapture);
   ui.reload.addEventListener("click", () => refresh(true));
   ui.emptyReload.addEventListener("click", () => refresh(true));
@@ -734,7 +828,7 @@
       showCopyDialog("无法复制", "尚无可供手机访问的线上地址，请先运行一键部署。", true);
       return;
     }
-    copyText(`${origin}/`, "本站地址已复制，请在 iPhone / iPad 的 Safari 中打开。普通网址不包含本次配对码。");
+    copyText(`${origin}/`, "本站地址已复制，请在 iPhone、Android 或鸿蒙手机浏览器中打开。普通网址不包含本次配对码。");
   });
   for (const button of document.querySelectorAll("[data-copy]")) {
     button.addEventListener("click", () => {

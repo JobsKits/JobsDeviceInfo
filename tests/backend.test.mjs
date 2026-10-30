@@ -17,6 +17,16 @@ const TEST_IMEI = '490154203237518';
 const BASE = 'https://device.example.test';
 let fixtureDir;
 
+test('跨平台版本允许单段和四段，苹果纯数字构建号不冒充系统版本', () => {
+  for (const version of ['12', '3.0.0.300', '18.2.1']) {
+    assert.equal(normalizeDetailValue('osVersion', version), version);
+  }
+  for (const version of ['3.0.0.300.1', 'Android 12', '1234', '3..0']) {
+    assert.equal(normalizeDetailValue('osVersion', version), null);
+  }
+  assert.equal(validateDevice({ UDID: TEST_UDID, VERSION: '123' }).osVersion, null);
+});
+
 before(() => {
   fixtureDir = mkdtempSync(join(tmpdir(), 'jobs-device-fixtures-'));
   execFileSync('openssl', [

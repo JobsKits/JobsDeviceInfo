@@ -173,7 +173,105 @@ try {
   check(pairRemoved.status, 200, '手机端可以清除整个配对会话');
   check((await (await call('/api/session')).json()).session, null, '清除后手机端不能继续读取');
   check((await (await call('/api/session', { headers: { cookie: desktopCookie } })).json()).session, null, '清除后电脑端同步失去结果');
-  console.log(`\n本机端到端验证通过：${checks} 项。证书与设备标识均为测试夹具，未验证真实iPhone兼容性。`);
+
+  cookie = '';
+  const browserPayload = {
+    consent: true,
+    platform: 'android',
+    platformSource: 'detected',
+    browser: {
+      userAgent: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36',
+      clientHints: { platform: 'Android', platformVersion: '15.0.0', model: 'LOCAL TEST ANDROID', mobile: true },
+      language: 'zh-CN',
+      screen: { width: 390, height: 844, pixelRatio: 3 }
+    }
+  };
+  const noBrowserCookie = await call('/api/session/browser', { method: 'POST', body: JSON.stringify(browserPayload) });
+  check(noBrowserCookie.status, 401, '浏览器采集接口要求有效会话Cookie');
+  const browserPair = await call('/api/pair', { method: 'POST', body: '{}' });
+  check(browserPair.status, 201, 'Android扫码可复用同一配对会话机制');
+  const browserDesktopCookie = browserPair.headers.get('set-cookie')?.split(';')[0] || '';
+  cleanupCookies.add(browserDesktopCookie);
+  const browserPairData = await browserPair.json();
+  cookie = browserDesktopCookie;
+  const desktopBrowserDenied = await call('/api/session/browser', { method: 'POST', body: JSON.stringify(browserPayload) });
+  check(desktopBrowserDenied.status, 403, '电脑配对角色不能代替手机提交浏览器信息');
+  const browserClaim = await call('/api/pair/claim', {
+    method: 'POST', headers: { cookie: '' }, body: JSON.stringify({ token: browserPairData.pairToken, consent: true })
+  });
+  check(browserClaim.status, 200, 'Android手机可认领电脑生成的二维码');
+  cookie = browserClaim.headers.get('set-cookie')?.split(';')[0] || '';
+  cleanupCookies.add(cookie);
+  const noBrowserConsent = await call('/api/session/browser', {
+    method: 'POST', body: JSON.stringify({ ...browserPayload, consent: false })
+  });
+  check(noBrowserConsent.status, 400, '浏览器回传必须再次包含明确同意');
+  const crossBrowser = await call('/api/session/browser', {
+    method: 'POST', headers: { origin: 'https://unrelated.example' }, body: JSON.stringify(browserPayload)
+  });
+  check(crossBrowser.status, 403, '浏览器回传拒绝跨源写入');
+  const injectedBrowser = await call('/api/session/browser', {
+    method: 'POST', body: JSON.stringify({ ...browserPayload, browser: { ...browserPayload.browser, imei: '490154203237518' } })
+  });
+  check(injectedBrowser.status, 400, '浏览器白名单拒绝通过采集接口注入硬件编号');
+  const browserPosted = await call('/api/session/browser', { method: 'POST', body: JSON.stringify(browserPayload) });
+  check(browserPosted.status, 200, 'Android浏览器回传真正写入本地D1');
+  const browserResult = (await browserPosted.json()).session;
+  check(browserResult.state, 'received', '浏览器采集会话标记已回传');
+  check(browserResult.verification, 'browser-reported', '浏览器采集不冒充CMS签名验证');
+  check(browserResult.device.platform, 'android', '保存Android平台分类');
+  check(browserResult.device.modelName, 'LOCAL TEST ANDROID', '浏览器公开型号可展示');
+  check(browserResult.device.fieldSources.modelName, 'browser-hint', '型号明确标记浏览器提示来源');
+  check(browserResult.device.osVersion, '15.0.0', '使用浏览器高熵系统版本而非降级UA版本');
+  check(browserResult.device.imei, null, '浏览器结果不会伪造IMEI');
+  check(browserResult.device.udid, null, 'Android结果不会伪造苹果UDID');
+  const desktopBrowserResult = (await (await call('/api/session', { headers: { cookie: browserDesktopCookie } })).json()).session;
+  check(JSON.stringify(desktopBrowserResult.device), JSON.stringify(browserResult.device), '电脑同步读取手机浏览器采集结果及来源');
+  check(desktopBrowserResult.verification, 'browser-reported', '电脑同步保留浏览器采集验证类型');
+  const browserReplay = await call('/api/session/browser', { method: 'POST', body: JSON.stringify(browserPayload) });
+  check(browserReplay.status, 409, '浏览器采集不允许重放覆盖已完成结果');
+  check((await call('/profile.mobileconfig')).status, 409, '浏览器采集完成后不能改写为苹果描述文件采集');
+  await call('/api/session', { method: 'DELETE' });
+
+  cookie = '';
+  const harmonyCreated = await call('/api/session', { method: 'POST', body: '{"consent":true}' });
+  check(harmonyCreated.status, 201, '鸿蒙可直接创建采集会话');
+  cookie = harmonyCreated.headers.get('set-cookie')?.split(';')[0] || '';
+  cleanupCookies.add(cookie);
+  const harmonyPayload = {
+    consent: true, platform: 'harmonyos', platformSource: 'selected',
+    browser: {
+      userAgent: 'Mozilla/5.0 (Linux; Android 12; HUAWEI LOCAL-TEST) AppleWebKit/537.36 HuaweiBrowser/14.0 Mobile Safari/537.36',
+      language: 'zh-CN', screen: { width: 360, height: 780, pixelRatio: 3 }
+    }
+  };
+  const harmonyPosted = await call('/api/session/browser', { method: 'POST', body: JSON.stringify(harmonyPayload) });
+  check(harmonyPosted.status, 200, '不支持UA-CH的鸿蒙浏览器也可完成回传');
+  const harmonyResult = (await harmonyPosted.json()).session;
+  check(harmonyResult.device.platform, 'harmonyos', '鸿蒙兼容UA允许用户纠正系统');
+  check(harmonyResult.device.fieldSources.platformName, 'selected', '手选鸿蒙保留用户选择来源');
+  check(harmonyResult.device.osVersion, null, '不把Android兼容版本冒充真实鸿蒙版本');
+  check(harmonyResult.device.serial, null, '鸿蒙浏览器不伪造序列号');
+  check(harmonyResult.device.seid, null, '鸿蒙浏览器不伪造SEID');
+  check(Boolean(harmonyResult.device.screenSize), true, '无UA-CH时仍回传屏幕参数');
+  const harmonyMajor = await call('/api/session/details', {
+    method: 'POST', body: JSON.stringify({ fields: { osVersion: '3' } })
+  });
+  check(harmonyMajor.status, 200, '鸿蒙整数主版本可按设备设置补录');
+  check((await harmonyMajor.json()).session.device.osVersion, '3', '整数主版本补录值不被强制改写');
+  const harmonyFourPart = await call('/api/session/details', {
+    method: 'POST', body: JSON.stringify({ fields: { osVersion: '3.0.0.168' } })
+  });
+  check(harmonyFourPart.status, 200, '鸿蒙四段系统版本可按设备设置补录');
+  const harmonyManualResult = (await harmonyFourPart.json()).session;
+  check(harmonyManualResult.device.osVersion, '3.0.0.168', '四段系统版本补录保持原值');
+  check(harmonyManualResult.device.fieldSources.osVersion, 'manual', '手工补录鸿蒙版本明确标记来源');
+  const hardwareInjection = await call('/api/session/browser', {
+    method: 'POST', body: JSON.stringify({ ...harmonyPayload, platform: 'ios', udid: pairedUdid })
+  });
+  check(hardwareInjection.status >= 400, true, '已完成浏览器会话拒绝硬件字段或平台改写');
+  await call('/api/session', { method: 'DELETE' });
+  console.log(`\n本机端到端验证通过：${checks} 项。证书、设备标识及浏览器数据均为测试夹具，未验证三端真机兼容性。`);
 } finally {
   if (cookie) await call('/api/session', { method: 'DELETE' }).catch(() => {});
   for (const remainingCookie of cleanupCookies) {

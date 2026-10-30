@@ -496,6 +496,42 @@ input[type=checkbox] {
 .source-label[data-source=derived] {
   color:var(--accent)
 }
+.source-label[data-source=browser],.source-label[data-source=browser-hint],.source-label[data-source=selected] {
+  color:var(--accent)
+}
+.capture-options {
+  display:grid;
+  gap:12px;
+  margin:18px 0;
+}
+.capture-options label {
+  display:grid;
+  gap:7px;
+  color:var(--muted);
+  font-size:12px;
+  margin-bottom:7px;
+}
+.capture-options select {
+  width:100%;
+  min-height:44px;
+  min-width:0;
+  padding:8px 10px;
+  color:var(--ink);
+  background:var(--paper);
+  border:1px solid var(--line);
+  border-radius:7px;
+  font-size:16px;
+}
+.capability-note {
+  padding:12px 14px;
+  margin:10px 0;
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:var(--soft);
+  color:var(--muted);
+  font-size:11px;
+  line-height:1.9;
+}
 .copy-hint {
   color:var(--muted);
   font-size:10px;

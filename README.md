@@ -23,22 +23,24 @@
 
 ## 🔥 <span id="前言">前言</span>
 
-面向自己与已明确同意的设备使用者，通过网页引导 [**iPhone / iPad**](https://support.apple.com/zh-cn/102400) 确认设备信息描述文件，查看 UDID、系统返回的可选 IMEI 与基础设备信息。网页与后端一起运行在 [**Cloudflare Workers**](https://developers.cloudflare.com/workers/)，短期结果保存在独立 [**D1**](https://developers.cloudflare.com/d1/) 数据库。
+面向自己与已明确同意的设备使用者，支持 [**iPhone / iPad**](https://support.apple.com/zh-cn/102400)、[**Android**](https://developer.android.com/) 和 [**HarmonyOS（鸿蒙，含 3）**](https://developer.huawei.com/consumer/cn/harmonyos/) 扫码采集、手机查看与电脑同步。苹果设备通过系统描述文件回传可用标识；Android、鸿蒙通过浏览器确认回传可公开的基础信息。网页与后端一起运行在 [**Cloudflare Workers**](https://developers.cloudflare.com/workers/)，短期结果保存在独立 [**D1**](https://developers.cloudflare.com/d1/) 数据库。
 
-维护者：Jobs。状态：可部署、持续维护。**真实手机回传需要在目标手机上确认描述文件；本机测试不能代替真机验收。**
+维护者：Jobs。状态：可部署、持续维护。**支持扫码不等于每个系统都开放硬件编号；本机测试不能代替三端真机验收。**
 
-**当前入口（2026-10-28）：[https://jobs-device-info-pages.pages.dev](https://jobs-device-info-pages.pages.dev/)。** [**Cloudflare Pages**](https://developers.cloudflare.com/pages/) 经内部绑定复用原 Worker 与 D1。用户已确认真机 UDID、IMEI 回传并在电脑显示结果；当前22项自动测试、75项真实本地HTTP/D1/CMS联调通过。十二项展示、文字点击复制、确认对话框、补录来源及390像素布局已用测试夹具检查。成功返回已调整为301绝对同源跳转，系统安装终态仍待新版真机复验；截图显示Wi-Fi，手机4G另验。
+**当前线上入口：[设备采集站](https://jobs-device-info-pages.pages.dev/)。** [**Cloudflare Pages**](https://developers.cloudflare.com/pages/) 经内部绑定复用原 Worker 与 D1。用户已确认苹果真机 UDID、IMEI 回传并在电脑显示结果；三端新版流程、苹果系统安装终态和手机 4G 网络仍须分别进行真机验收。
 
 验收要求为**手机不开启 VPN 也能使用**。现有 `device.jobsgo.ccwu.cc` 与 `jobsdevices.ccwu.cc` 均未通过用户手机访问测试，电脑仅经代理可访问；该现象不能直接证明整个 `ccwu.cc` 后缀被阻断。用户没有其它域名或公网服务器，因此新增专属 Pages 默认域作为入口，不另购域名、不改套餐；原 Worker、D1 和域名绑定保留。跨域切换时需在当前 Pages 网站重新生成二维码；页面可达与系统回传成功分别验收。
 
 | 能力 | 当前行为与入口 |
 | --- | --- |
-| 设备信息采集 | 手机打开线上 HTTPS 网站，同意本次采集后下载描述文件，进入系统设置确认，返回网页查看。 |
+| 三端设备采集 | iPhone / iPad 在 Safari 确认描述文件；Android、鸿蒙在浏览器同意后回传基础信息，无需下载苹果描述文件。 |
+| 系统识别 | 自动识别可见系统线索，允许用户纠正。华为品牌或 Android 兼容 UA 不直接证明鸿蒙版本；无法确定的版本不猜测。 |
+| 采集方式 | 苹果 Safari 可选系统确认或浏览器基础信息；其它手机浏览器可采集基础信息，电脑也提供本机浏览器信息入口。 |
 | UDID | 接收系统通过 Profile Service 返回的 UDID；普通网页无法直接读取。 |
 | IMEI | 合法值展示，规范分组格式归一化；未返回或格式无法识别时明确提示，不保存异常原值，可手动补录并标记来源。**不承诺所有系统、机型返回 IMEI。** |
-| 关于本机字段 | 显示IMEI、IMEI2、ICCID、MEID、系统版本、型号名称、序列号、型号号码和SEID；另保留UDID、产品标识和版本原始值。未回传项留空，不承诺全部自动取得。 |
-| 结果操作 | 点击字段名称或数值复制并弹确认框；支持复制全部、补录缺失字段、清除会话。系统回传、手动填写和型号映射分别标明来源。 |
-| 电脑与手机配对 | 电脑页面显示二维码，手机扫码打开线上站点，确认描述文件后，电脑同步显示收到的结果。 |
+| 信息与缺值原因 | 展示系统、浏览器、屏幕及可用型号 / 版本等信息；硬件字段逐项标明未开放、未提供或不适用，保留 UDID、IMEI、IMEI2、ICCID、MEID、序列号、型号号码、SEID、产品标识与构建号，不伪造编号。 |
+| 结果操作 | 点击字段名称或数值复制并弹确认框；支持复制全部、补录缺失字段、清除会话。系统回传、浏览器信息、用户选择、手动填写和资料映射分别标明来源。 |
+| 电脑与手机配对 | 电脑页面显示二维码，三端手机扫码确认并回传后，电脑同步显示收到的结果。 |
 | 一键更新后端与网页 | 双击 [Worker 部署入口](<./【MacOS】🚀部署到Cloudflare.command>)，检查依赖和测试，复用专属数据库，再发布 Worker 与网页资源。 |
 | Pages 入口 | 双击 [Pages 部署入口](<./【MacOS】🌐部署Pages入口.command>)，更新已存在的专属 Pages 薄入口，验证直连并更新本地预览地址与快捷方式；不重复发布后端。 |
 | 本地预览 | 双击 [预览入口](<./【MacOS】🧪本地预览.command>)，仅启动本机服务与本地数据库。 |
@@ -59,15 +61,15 @@
 
 4、部署后脚本优先检查已安全绑定的独立域名；未配置时检查 `https://<worker>.<account-subdomain>.workers.dev`。选定线路的 `/api/health` 通过后显示并打开地址，写入本目录 `.deployment.json`；选择代理时会额外进行一次短时、不注入显式代理的本机检查。URL 以实际部署输出为准，发布与线路检查成功不代表手机 4G 已可访问。
 
-5、在电脑页面扫描二维码，或在手机 [**Safari**](https://www.apple.com/safari/) 中直接打开该 HTTPS 地址。勾选采集说明，点击获取；允许下载后进入“设置 → 已下载描述文件”确认。配对模式下，系统回传后电脑页面会同步显示结果；直接在手机开始时回到原浏览器查看。**下载不等于安装，手机端必须手动确认。**
+5、电脑页面生成二维码，用 iPhone、Android 或鸿蒙手机扫码；也可在手机直接打开 HTTPS 地址。先核对页面识别的系统，识别不准确时手动选择，再勾选采集说明。iPhone / iPad 用 [**Safari**](https://www.apple.com/safari/) 下载确认文件，在“设置 → 已下载描述文件”检查并安装；Android、鸿蒙点击回传浏览器信息即可，无需安装描述文件。配对模式下，手机回传后电脑页面自动显示同一份结果。**苹果描述文件下载不等于安装，仍须在系统设置确认。**
 
-6、需要的项目未返回时，展开“补录关于本机信息”，在手机“设置 → 通用 → 关于本机”核对后填写。支持上述九项，标明手动来源；系统值只读，型号映射可更正。点击名称或数值复制，成功或失败均弹对话框；无值不复制假编号。
+6、先查看各字段的缺值原因。需要补充时，展开补录区域，在本机“关于本机 / 关于手机”设置中核对后填写；不同品牌设置路径可能不同。支持上述九项，标明手动来源；系统值只读，推导信息按页面说明更正。点击名称或数值复制，成功或失败均弹对话框；无值不复制占位文字。**手动补录不等于自动读取。**
 
 当前描述文件请求Apple官方已有示例的UDID、IMEI、ICCID、MEID、PRODUCT、VERSION、SERIAL。IMEI2、SEID、型号号码等仅在实际回传或手动补录时显示，不添加未经证实的属性。系统版本按Apple公开构建号与产品列表精确匹配时可自动推导，来源标记版本映射；未知不猜测。系统版本与构建号分开，型号名称来自[本地有来源的映射](./data/README.md)时明确标记。
 
 查看已收到结果时，用同一浏览器打开普通首页；不要点击生成新二维码，它会替换当前会话。`#start-pair`入口遇到已完成会话时先恢复结果，不自动删除它。
 
-当前流程支持 Apple 的 Profile Service。**Android 浏览器不能使用这份描述文件采集 UDID / IMEI；本项目没有绕过手机系统权限的功能。**
+Android、鸿蒙浏览器可回传浏览器公开的型号线索、系统线索、语言和屏幕参数等。浏览器隐藏型号或压缩版本时，结果会注明限制；鸿蒙 3 可能使用 Android 兼容 UA，不能把其中的 Android 版本作为鸿蒙版本。**普通网页不能自动读取 Android / 鸿蒙的 IMEI、IMEI2、ICCID、序列号或 SEID，也没有苹果 UDID；本项目不绕过系统权限。**
 
 ## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、环境、命令和部署范围 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
@@ -115,7 +117,7 @@ npm run build
 
 ## <span id="jobs-toc-heading-4" data-jobs-toc="v2">三、采集、签名和保存边界 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
-1、**网页不能静默读取 UDID / IMEI**。用户明确同意后，网站生成最小 Profile Service 描述文件，由手机系统在确认后把信息送回本站的 Cloudflare 服务。不会安装 MDM 管理、VPN、代理、根证书，也不读取通讯录、相册或定位。
+1、**网页不能静默读取 UDID / IMEI**。苹果设备由用户同意后下载最小 Profile Service 描述文件，系统确认后回传；Android、鸿蒙由用户同意后提交浏览器公开信息。不会安装 MDM 管理、VPN、代理、根证书，也不读取通讯录、相册或定位。浏览器信息不代表硬件编号或设备身份认证。
 
 2、下发的描述文件未使用站点签名证书进行 CMS 签名，手机可能显示“未签名”。这与回传签名是两件事：服务端要求设备回传 CMS 内容签名并校验其完整性。**目前没有验证签名者的 Apple 证书信任链，结果不能作为设备真实性、登录身份、支付或风控凭据。** 不要关闭 HTTPS 校验或绕过浏览器证书告警。
 
@@ -126,6 +128,8 @@ npm run build
 5、每个 IP 每 15 分钟最多创建 12 个会话。服务器只记录短期随机盐处理的 IP 散列，原始 IP 不保存到本项目数据库。Cloudflare 平台本身的访问与安全日志受账户配置和平台策略控制，本项目默认关闭 Worker Observability。
 
 6、IMEI 是可选回传字段。双卡机型可能有多个 IMEI，本项目展示此次系统返回的字段或你手工补录的一项，不能据此证明已枚举整台设备的全部蜂窝模块。`VERSION` 也可能是系统构建号，不能保证始终等于“关于本机”的公开版本号。
+
+7、浏览器采集只接受白名单字段、有效会话 Cookie 和明确同意；配对会话仅允许已认领的手机提交。浏览器回传与苹果 CMS 回传互斥，成功后不允许重复上传覆盖本次结果。`browser-reported` 仅表示浏览器提交，不具有苹果 CMS 内容签名校验含义；用户选择系统也不作为系统自动识别结果。
 
 依据：[苹果 Profile Service 示例](https://developer.apple.com/library/archive/documentation/NetworkingInternet/Conceptual/iPhoneOTAConfiguration/ConfigurationProfileExamples/ConfigurationProfileExamples.html)、[描述文件安装说明](https://support.apple.com/zh-cn/102400)、[D1 Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/)。归档示例不构成所有当前系统和机型返回 IMEI 的保证。
 
@@ -151,7 +155,9 @@ node ./scripts/verify-local.mjs
 | 同名 Worker 没有部署记录 | 核对远端确属本项目，再在交互终端输入 `YES`；自动化模式停止。 |
 | 描述文件只下载了，没有结果 | 在系统设置中确认安装，返回原浏览器；会话已过期则重新开始。 |
 | 显示“未签名” | 下发描述文件没有站点签名；核对来源与内容后由你决定是否继续，不绕过 HTTPS 告警。 |
-| UDID 收到但 IMEI 为空 | 当前系统或机型没有回传，按页面说明手动补录。 |
+| 苹果 UDID 收到但其它字段为空 | 查看逐项原因；IMEI / ICCID 取决于系统回传，IMEI2、型号号码和 SEID 超出现有描述文件可保证的范围，手工补录不能视作自动读取。 |
+| Android / 鸿蒙硬件编号没有值 | 属于浏览器权限边界；可回传浏览器基础信息，确需硬件编号时在本机设置核对后补录。 |
+| 鸿蒙 3 被识别为 Android 或版本缺失 | 在页面选择鸿蒙；兼容 UA 不提供真实鸿蒙版本，不能使用 Android 兼容版本补值。 |
 | 浏览器切到演示模式 | 检查 API 或重新加载；数据恢复后自动显示服务端响应。 |
 | 域名绑定存在 DNS / 其它 Worker 冲突 | 脚本停止且不覆盖；核对配置，另选独立子域或由你在控制台处理。 |
 | 电脑可访问，手机 4G 的 Safari 未能加载网页 | 先验证手机到域名的网络与 TLS 可达性；尚未进入描述文件授权。代理检查成功不能代替直连与手机验收，不承诺换 Cloudflare IP 或关闭 HTTP/3 即可修复。 |
@@ -193,25 +199,26 @@ JobsDeviceInfo/
 | `POST /api/profile/<token>` | 系统CMS签名回传；成功后301返回绝对同源首页，URL不携带设备编号。 |
 | `POST /api/session/imei` | `{ "imei": "15位数字" }`；补录当前会话并标记 `manual` 来源。 |
 | `POST /api/session/details` | `{ "fields": { "imei2": "…" } }`；九项白名单补录，不能覆盖系统值或修改UDID。 |
+| `POST /api/session/browser` | 明确同意后提交系统选择与白名单浏览器数据；仅普通会话或已认领手机可提交，完成后双端可查看。 |
 | `DELETE /api/session` | 删除自己的当前会话并清除 Cookie。 |
 
 ## <span id="jobs-toc-heading-7" data-jobs-toc="v2">六、工程规模和依赖 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
-统计日期：2026-10-28。依据当前 `public/index.html`、`src/index.js`、`migrations/*.sql`、`wrangler.json`、`package.json` 与锁文件；业务规模按路由条目和 HTTP 方法 / 路径组合统计，弹层与静态文件不另计页面，健康检查不计业务接口。
+统计日期：2026-10-29。依据当前 `public/index.html`、`src/index.js`、`migrations/*.sql`、`wrangler.json`、`package.json` 与锁文件；业务规模按路由条目和 HTTP 方法 / 路径组合统计，弹层与静态文件不另计页面，健康检查不计业务接口。
 
 | 项目 | 规模与口径 |
 | --- | --- |
 | Web 页面 | 首页 1 个，业务子页面 0 个；页面路由 1 个。 |
-| 对外业务 HTTP 接口 | 9个，见上表除`/api/health`外的条目；无RPC/MQ。 |
+| 对外业务 HTTP 接口 | 10 个，见上表除 `/api/health` 外的条目；无 RPC / MQ。 |
 | 部署单元 | 1 个采集 Worker 与 1 个 Pages 薄入口；数据库和业务仅运行一份。 |
 | 核心业务表 | 1 张 `sessions`；`rate_salts`、`rate_limits` 为短期限流辅助表。 |
 | 业务状态机 | 1 个会话：直接创建或电脑配对 → 手机加入 → 等待 → 已收到 → 到期 / 删除。 |
 | 外部系统 | Cloudflare D1 存储、Apple Profile Service 回调；无支付、短信、地图或第三方分析。 |
 | 定时任务 | 1 个 Cron，每 15 分钟清理过期会话及限流记录。 |
 | 运行时规模 | 自托管工具，尚未建立峰值 QPS、日增量或容量承诺；以账户实际额度为限。 |
-| 建库与提交 | 当前文件夹不是 Git 仓库，无首次提交、提交总数或贡献者统计；未创建提交或推送。 |
+| 建库与提交 | 独立 Git 仓库；首次提交 2026-10-29 10:54:37 +0800（`bb85d4b`），最近提交 2026-10-29 11:11:22 +0800（`f19e429`）；当前 HEAD 历史 3 次提交、1 位贡献者；仓库实际创建时间未独立记录。 |
 
-工具链与依赖版本由 `package.json` 和 `package-lock.json` 固定，锁文件随交付文件夹提供；Node.js 最低 22.13。页面使用浏览器原生能力，无前端框架，真机浏览器支持范围仍需目标 iOS / iPadOS 验收。
+工具链与依赖版本由 `package.json` 和 `package-lock.json` 固定，锁文件已入库；Node.js 最低 22.13。页面使用浏览器原生能力，无前端框架；iOS / iPadOS、Android 和鸿蒙（含 3）分别走对应网页流程，真机兼容性仍须在目标系统和浏览器验收，不能把 UA 夹具测试当作实机结果。
 
 | 直接依赖 | 锁定版本 | 来源 / 许可证 | 用途 |
 | --- | --- | --- | --- |
@@ -225,20 +232,20 @@ JobsDeviceInfo/
 
 直接依赖均使用精确版本，传递依赖以锁文件为准；无私有依赖。许可证依据对应安装包的 `package.json`。这里不把“未专门进行全量供应链漏洞审计”表述成“没有漏洞”。
 
-源码统计按文件与物理行计算，包含注释、空行，日期同上。业务代码为 `src/*.js`、`pages/worker.js`、`public/index.html` / `app.js` / `styles.css` 与数据库 SQL；测试单列；配置与脚本包括根配置和部署 / 构建工具。排除第三方 `node_modules`、生成的 `public/qr-code.js`、`public/public-site.json`、锁文件、第三方型号映射资料、说明文档、许可证文本、隐藏运行目录和构建产物。下表占比只在三类自有源码间计算，四舍五入可能产生 0.1% 误差。
+源码统计按文件与物理行计算，包含注释、空行，日期同上。业务代码为 `src/*.js`、`pages/worker.js`、`public/index.html` / `app.js` / `styles.css` / `device-capabilities.js` 与数据库 SQL；测试为 `tests/*.test.mjs` 和 `scripts/verify-local.mjs`；配置与脚本包括根配置、Pages 配置和部署 / 构建工具。排除第三方 `node_modules`、生成的 `public/qr-code.js`、`public/public-site.json`、锁文件、第三方型号映射资料、说明文档、许可证文本、隐藏运行目录和构建产物。下表占比只在三类自有源码间计算，四舍五入可能产生 0.1% 误差。
 
 | 类别 | 文件数 | 物理行 | 行数占比 |
 | --- | --- | --- | --- |
-| 业务代码 | 11 | 2999 | 56.6% |
-| 测试代码 | 3 | 976 | 18.4% |
-| 配置与脚本 | 12 | 1325 | 25.0% |
+| 业务代码 | 13 | 3354 | 55.7% |
+| 测试代码 | 5 | 1344 | 22.3% |
+| 配置与脚本 | 12 | 1325 | 22.0% |
 | 第三方与生成资源 | 排除 | 排除 | 不计入分母 |
 
 ```mermaid
 pie showData
   title 自有源码物理行数
-  "业务代码" : 2999
-  "测试代码" : 976
+  "业务代码" : 3354
+  "测试代码" : 1344
   "配置与脚本" : 1325
 ```
 
@@ -250,8 +257,10 @@ pie showData
 flowchart LR
   P[public/index.html + app.js] --> W[src/index.js / Worker]
   W --> R[src/profile.js / CMS 与 plist]
-  W --> S[src/storage.js / 会话]
-  S --> D[(Cloudflare D1)]
+  W --> BR[src/browser-device.js / 浏览器白名单与来源]
+  W --> S[src/storage.js / 哈希与到期清理]
+  W --> D[(Cloudflare D1)]
+  S --> D
   P --> QR[public/qr-code.js / 本地二维码资源]
   C[部署 .command] --> H[scripts/deploy-config.mjs]
   C --> V[Wrangler / Cloudflare]
@@ -264,16 +273,21 @@ flowchart TD
   R -->|电脑| T[POST /api/pair / 显示二维码]
   T --> U[手机扫码 / 同意并加入配对]
   U --> V[POST /api/pair/claim]
-  V --> F
+  V --> P{手机采集方式}
   R -->|手机直接打开| C{用户同意采集?}
   C -->|否| E[保持说明与空态]
   C -->|是| D[POST /api/session]
-  D --> F[下载 Profile Service 描述文件]
+  D --> P
+  P -->|iPhone / iPad Safari| F[下载 Profile Service 描述文件]
+  P -->|Android / 鸿蒙浏览器| BR[POST /api/session/browser]
+  BR --> BV{同意 / Cookie / 角色 / 白名单有效?}
+  BV -->|否| J[拒绝回传 / 显示可重试状态]
+  BV -->|是| K[src/index.js 原子保存会话结果]
   F --> G[手机设置 / 用户确认]
   G --> H[src/index.js 接收 CMS]
   H --> I{签名与一次性 Challenge有效?}
-  I -->|否| J[拒绝回传 / 显示可重试状态]
-  I -->|是| K[src/storage.js 保存会话结果]
+  I -->|否| J
+  I -->|是| K
   K --> L[手机网页与配对电脑同步结果]
   L --> M{IMEI 是否回传?}
   M -->|是| N[显示系统值]

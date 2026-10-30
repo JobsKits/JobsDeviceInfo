@@ -200,7 +200,7 @@ export function normalizeDetailValue(key, value, { allowGrouping = true } = {}) 
     case 'seid':
       return /^[0-9A-Fa-f]{16,128}$/.test(compact) && compact.length % 2 === 0 ? compact.toUpperCase() : null;
     case 'osVersion':
-      return /^\d{1,3}\.\d{1,3}(?:\.\d{1,3})?$/.test(text) ? text : null;
+      return /^\d{1,3}(?:\.\d{1,3}){0,3}$/.test(text) ? text : null;
     case 'modelName':
       return text.length <= 80 ? text : null;
     case 'modelNumber':
@@ -240,7 +240,8 @@ export function validateDevice(values) {
     imei2: normalizeDetailValue('imei2', values.IMEI2),
     iccid: normalizeDetailValue('iccid', values.ICCID),
     meid: normalizeDetailValue('meid', values.MEID),
-    osVersion: normalizeDetailValue('osVersion', values.OS_VERSION) || normalizeDetailValue('osVersion', version),
+    osVersion: normalizeDetailValue('osVersion', values.OS_VERSION)
+      || (/^\d{1,3}\.\d{1,3}(?:\.\d{1,3})?$/.test(version || '') ? version : null),
     modelName: normalizeDetailValue('modelName', values.MODEL_NAME),
     modelNumber: normalizeDetailValue('modelNumber', values.MODEL),
     seid: normalizeDetailValue('seid', values.SEID)

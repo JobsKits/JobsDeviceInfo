@@ -18,7 +18,7 @@
 
 ## 🔥 <span id="前言">前言</span>
 
-服务运行于 [**Cloudflare Workers**](https://developers.cloudflare.com/workers/)，以独立 [**D1**](https://developers.cloudflare.com/d1/) 数据库保存当前采集会话。`index.js` 负责接口与静态文件路由，`profile.js` 负责描述文件和设备回传解析，数据库结构位于 `../migrations/`。
+服务运行于 [**Cloudflare Workers**](https://developers.cloudflare.com/workers/)，以独立 [**D1**](https://developers.cloudflare.com/d1/) 数据库保存当前采集会话。`index.js` 负责接口与静态文件路由，`profile.js` 负责苹果描述文件和系统回传解析，`browser-device.js` 负责 Android / 鸿蒙等浏览器数据的白名单校验与来源归类，数据库结构位于 `../migrations/`。
 
 ## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、接口与状态 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
@@ -33,11 +33,16 @@
 | `POST /api/profile/<token>` | 校验CMS、Challenge、有效期和字段后保存，301返回绝对同源首页；不携带设备编号。 |
 | `POST /api/session/imei` | 接受 `{ "imei": "15位数字" }`，补录当前会话的 IMEI，来源标记为 `manual`。 |
 | `POST /api/session/details` | `{ "fields": { "imei2": "…" } }`；同源、Cookie、有效期与白名单校验，JSON补丁原子合并。 |
+| `POST /api/session/browser` | 明确同意后提交浏览器信息，只接受普通会话或配对手机；校验白名单并原子完成一次回传，电脑不能代手机提交。 |
 | `DELETE /api/session` | 删除自己的会话并清除 Cookie。 |
 
 会话字段：`state` 为 `waiting` 或 `received`；`expiresAt`、`receivedAt` 为 ISO 时间；`device` 包含 `udid`、`imei`、`imeiSource`、`product`、`version`、`serial`。设备未返回的字段为 `null`。`version` 可能是系统构建号，不能始终按公开 iOS 版本号解释。
 
-新增`imei2`、`iccid`、`meid`、`osVersion`、`modelName`、`modelNumber`、`seid`；有值时`fieldSources`为`profile`、`manual`或`derived`。系统版本不冒充构建号，型号名称映射见[本地资料](../data/README.md)，未知留空。
+其它硬件展示字段为 `imei2`、`iccid`、`meid`、`osVersion`、`modelName`、`modelNumber`、`seid`；苹果回传、手动填写与映射分别标记 `profile`、`manual`、`derived`。系统版本不冒充构建号，型号名称映射见[本地资料](../data/README.md)，未知留空。
+
+浏览器结果使用独立的平台和基础信息字段，标记浏览器数据或用户选择来源；`verification: "browser-reported"` 不具有 CMS 签名含义。UA / UA-CH 仅作为客户端声明；华为品牌或 Android 兼容 UA 不证明鸿蒙版本。浏览器接口不接受 UDID、IMEI、IMEI2、ICCID、序列号、SEID 等硬件字段，不能用浏览器标识代替硬件编号。
+
+浏览器请求体为 `{ "consent": true, "platform": "android", "platformSource": "detected", "browser": { "userAgent": "…" } }`。`platform` 接受 `ios`、`android`、`harmonyos`、`unknown`，`platformSource` 接受 `detected` 或 `selected`。`browser` 可附带 `clientHints`（`platform`、`platformVersion`、`model`、`architecture`、`bitness`、`mobile`）、`language` 和 `screen`（`width`、`height`、`pixelRatio`）。未知键、错误类型、超长内容和硬件字段均拒绝。响应包含 `collectionMethod: "browser"`、`platform`、`platformName`、`browserName`、`screenSize`、`language`、可用的 `modelName` / `osVersion`；来源区分 `browser`、`browser-hint`、`selected`。缺失内容为 `null`，不以占位文字作为字段值。
 
 九项补录白名单为`imei`、`imei2`、`iccid`、`meid`、`osVersion`、`modelName`、`serial`、`modelNumber`、`seid`。系统值拒绝覆盖，映射可更正；手工数据随原会话到期或删除，IMEI继续共用原`manual_imei`列。
 
@@ -47,7 +52,7 @@
 
 有效会话的回传被拒绝时，`callbackError` 仅向持有该会话 Cookie 的浏览器返回固定 `code`、`stage` 和 `at`；页面展示错误码供排查。数据库只附加固定分类、白名单算法标识与错误类别，不保存原始回传、证书、异常原文或硬件字段；诊断随会话到期或删除，成功回传后清空。记录诊断不会降低签名、Challenge、有效期或字段校验。
 
-配对字段：`paired` 表示电脑与手机配对流程；`role` 为 `desktop` 或 `phone`，`canDownload` 表示当前浏览器是否可以下载采集描述文件。配对会话只有手机端可下载，电脑只等待结果；直接在手机建立的普通会话保持可下载。两端均可查看、补录 IMEI 或清除同一会话。配对令牌只在创建响应中返回，刷新电脑页面后不能从后端恢复，应重新生成二维码；重新生成会作废当前旧配对。手机确认描述文件后，系统自动回传并由网页轮询返显，不需要手动上传。
+配对字段：`paired` 表示电脑与手机配对流程；`role` 为 `desktop` 或 `phone`，`canDownload` 表示当前浏览器是否可以下载采集描述文件。配对会话只有手机端可下载描述文件或提交浏览器采集，电脑只等待结果；普通手机会话可直接开始采集。两端均可查看、补录或清除同一会话。配对令牌只在创建响应中返回，刷新电脑页面后不能从后端恢复，应重新生成二维码；重新生成会作废当前旧配对。苹果系统回传或 Android / 鸿蒙浏览器提交完成后，网页轮询返显共享结果。
 
 ## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、校验与保存边界 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
@@ -64,5 +69,7 @@
 5、15 分钟后接口立即拒绝读取；相关接口访问会回收过期记录，另由每 15 分钟一次的 Cron 回收。无访问时物理清理最迟在有效期后约 15 分钟触发，实际执行时间取决于平台调度。删除数据库记录**不等于清除 Cloudflare D1 的备份、Time Travel 或平台保留记录**；平台保留策略由 Cloudflare 决定。
 
 6、下发的描述文件未做站点证书 CMS 签名，系统可能显示“未签名”；这不影响回传本身要求 CMS 内容签名。采集描述文件不包含 MDM、VPN、代理或根证书负载。不要关闭 HTTPS 校验或绕过浏览器证书告警。
+
+7、浏览器采集要求 `consent: true`、同源 JSON、有效 Cookie 和未完成的会话；配对电脑角色拒绝提交。浏览器结果和苹果系统结果互斥，一次成功后不得重复上传覆盖。字段采用长度、类型与结构白名单校验，仅保存获准的 UA、客户端提示、语言、屏幕参数及其展示结果，随会话 15 分钟过期；慢请求写入时再次核验有效期。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

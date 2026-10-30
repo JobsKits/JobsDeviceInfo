@@ -25,11 +25,11 @@
 | 文件 | 职责与输入输出 |
 | --- | --- |
 | `deploy-config.mjs` | 读取父目录 `deploy.settings.json`、`wrangler.json` 与已安装包版本；验证资源名称，生成 `.deploy/wrangler.json`，核对账户列表，提取专属数据库 ID 与部署 URL，选定线路检查成功后合并保存 `.deployment.json` 及独立的验证范围。 |
-| `verify-local.mjs` | 对已经运行的本地 Worker 发起协议与会话联调；仅允许回环地址，使用明确的本地测试数据与临时自签名 CMS，不代表 Apple 真机验收。 |
+| `verify-local.mjs` | 对已经运行的本地 Worker 发起苹果 CMS、Android / 鸿蒙浏览器回传、权限隔离与电脑同步联调；仅允许回环地址，使用明确的本地测试数据与临时自签名 CMS，不代表三端真机验收。 |
 | `build-assets.mjs` | 使用已锁定的 esbuild 与 node-qrcode 依赖生成 `../public/qr-code.js` 和 `../public/vendor-licenses.txt`；部署与预览入口会自动调用。 |
 | `qr-entry.mjs` | 二维码构建入口，只导出浏览器所需的本地二维码绘制功能，不含网络上传或远程二维码服务。 |
 | `domain-binding.mjs` | 仅为配置的独立域名生成 Cloudflare 变更预览并绑定；遇到现有 DNS、其它 Worker 或移除行为即停止，最终 API 覆盖开关保持关闭。 |
-| `build-pages.mjs` | 从 `pages/worker.js` 和受控静态文件生成专用 `.pages-build`；全路径通过内部绑定访问现有 Worker，不复制业务或数据库；存在未知文件时停止。 |
+| `build-pages.mjs` | 从 `pages/worker.js` 和受控静态文件（包括三端识别模块 `../public/device-capabilities.js`）生成专用 `.pages-build`；全路径通过内部绑定访问现有 Worker，不复制业务或数据库；存在未知文件时停止。 |
 
 配置工具是两个 `.command` 的内部业务辅助，通常无需手工调用。`check`、`check-deps`、`settings`、`accounts`、`assert-account`、`database-id`、`url`、`owns-worker` 只读取其输入；`config` 写 `.deploy/wrangler.json`；`upload-config` 写无自动域名覆盖的 `.deploy/worker-upload.json`；`mark-pending` 写同账户、同 Worker、同绝对项目目录的待完成记录；`bind-domain` 执行上述安全绑定；`save-deployment` 写 `.deployment.json` 和仅含线上根站 URL 的 `public/public-site.json`。不存在执行字符串或 `eval` 配置的路径。
 
@@ -45,7 +45,7 @@ node ./scripts/verify-local.mjs
 
 联调会写入本地测试会话，默认请求 `http://127.0.0.1:8787`；不会把测试设备号发到公开网站。仅需配置检查时，可使用两个双击入口的 `--check` 参数，不会启动服务、建库或发布。
 
-当前22项自动测试、75项本地HTTP/D1/CMS联调及21项线上API联调通过；用户确认UDID、IMEI回传和电脑返显。复制弹窗与390像素布局使用明确测试夹具验收，不读取真实硬件值。旧ccwu入口网络问题与系统端安装终态独立记录，Pages范围见[说明](../pages/README.md)。
+联调覆盖苹果 CMS 回传、浏览器白名单及同意校验、配对角色、重复提交、双端结果一致和会话清除；测试数量以实际运行输出为准。用户已确认苹果 UDID、IMEI 回传和电脑返显；三端新版真机流程及系统安装终态仍须单独验收。线上入口和网络边界见 [Pages 说明](../pages/README.md)。
 
 `.deploy/` 是本机诊断目录，不属于公开网页。打包交付和公开源码时排除其中的诊断状态、`.wrangler/`、凭据、Cookie 与证书私钥。下发描述文件和回传 CMS 的签名边界见根说明。
 

@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
     <meta name="api-timeout-ms" content="3000">
-    <meta name="description" content="查看苹果设备回传的信息，并补录关于本机字段；每项注明来源，支持点击复制。">
+    <meta name="description" content="支持 iPhone、Android、鸿蒙扫码采集可用设备信息，手机与电脑同步，每项注明来源与获取限制。">
     <title>JobsDeviceInfo · 设备信息</title>
     <link rel="stylesheet" href="/styles.css">
+    <script src="/device-capabilities.js" defer></script>
     <script src="/app.js" defer></script>
   </head>
   <body>
@@ -23,9 +24,9 @@
           <div>
             <p class="eyebrow">YOUR DEVICE, CLEARLY.</p>
             <h1 id="pageTitle">设备信息，<br class="mobile-break"><span>清楚一点。</span></h1>
-            <p class="intro-copy">经过你的系统确认，查看设备标识与关于本机信息，<br class="desktop-break">系统未返回的项目可手动补录，并注明来源。</p>
+            <p class="intro-copy">iPhone、Android、鸿蒙，扫码查看可用设备信息。<br class="desktop-break">手机确认后电脑同步，每项注明来源与获取限制。</p>
           </div>
-          <div class="intro-note"><span class="note-index">01 — 03</span><p>由你发起 · 由系统确认<br>本次结果 15 分钟后不可访问</p></div>
+          <div class="intro-note"><span class="note-index">01 — 03</span><p>由你发起 · 确认后回传<br>本次结果 15 分钟后不可访问</p></div>
         </section>
 
         <div class="demo-banner" id="demoBanner" hidden role="status"><strong>本地演示</strong><span>暂时无法连接采集服务。下方示例可操作，但不是这台设备的真实标识；连接恢复后自动显示服务端结果。</span><button id="demoRetry" type="button" class="text-button">重新连接</button></div>
@@ -33,11 +34,17 @@
 
         <div class="workspace">
           <section class="capture-card card" id="capture" aria-labelledby="captureTitle">
-            <div class="section-heading"><div><p class="eyebrow">START HERE</p><h2 id="captureTitle">开始一次设备采集</h2></div><span class="pill">iPhone / iPad</span></div>
-            <p class="support-note" id="supportNote">请使用 iPhone 或 iPad 的 Safari 打开本站。</p>
+            <div class="section-heading"><div><p class="eyebrow">START HERE</p><h2 id="captureTitle">开始一次设备采集</h2></div><span class="pill" id="platformBadge">三端扫码</span></div>
+            <p class="support-note" id="supportNote">支持 iPhone / iPad、Android、鸿蒙；按设备能力提供采集方式。</p>
+            <button class="text-button" id="useThisDevice" type="button" hidden>在本机采集浏览器信息</button>
+            <div class="capture-options" id="captureOptions" hidden>
+              <div><label for="platformSelect">本机系统</label><select id="platformSelect"><option value="auto">自动识别</option><option value="ios">iPhone / iPad</option><option value="android">Android</option><option value="harmonyos">鸿蒙（含 HarmonyOS 3）</option><option value="unknown">其它 / 无法识别</option></select></div>
+              <div id="captureMethodLabel" hidden><label for="captureMethod">采集方式</label><select id="captureMethod"><option value="profile">系统确认 · 设备标识</option><option value="browser">浏览器 · 基础信息</option></select></div>
+              <p id="capabilityNote" class="capability-note"></p>
+            </div>
             <section class="pair-section" id="pairSection" aria-labelledby="pairTitle" hidden>
               <div class="pair-heading"><div><p class="eyebrow">SCAN &amp; CONNECT</p><h3 id="pairTitle">手机扫码，电脑同步</h3></div><span class="pill">本次会话</span></div>
-              <p class="pair-intro" id="pairIntro">生成二维码后，用 iPhone / iPad 扫码。手机确认并回传后，本页自动显示同一份结果。</p>
+              <p class="pair-intro" id="pairIntro">用 iPhone、Android 或鸿蒙手机扫码，确认采集后，本页自动显示同一份结果。</p>
               <div class="qr-panel" id="qrPanel" hidden>
                 <div class="qr-frame"><canvas id="pairQr" width="224" height="224" role="img" aria-label="本次设备信息采集的配对二维码"></canvas></div>
                 <div class="qr-status"><strong id="qrState">等待手机扫码</strong><span id="qrExpiry"></span></div>
@@ -45,20 +52,20 @@
                 <p class="pair-access">配对链接持有人可加入本次会话并查看结果，请只交给本次采集设备。</p>
               </div>
               <button class="secondary-button pair-generate" id="generatePair" type="button">生成扫码二维码</button>
-              <p class="pair-footnote" id="pairFootnote">生成入口不会读取手机信息。手机仍须勾选同意并手动安装描述文件。</p>
+              <p class="pair-footnote" id="pairFootnote">手机勾选同意后才采集。苹果设备可走系统确认；Android、鸿蒙使用浏览器基础信息采集。</p>
             </section>
-            <div class="pair-notice" id="pairNotice" role="status" hidden><strong>已打开电脑配对入口</strong><p>勾选同意并确认描述文件后，结果会同时显示在本机和发起配对的电脑页面。</p><button class="text-button" id="copyPendingPair" type="button" hidden>复制本次配对链接到 Safari</button></div>
+            <div class="pair-notice" id="pairNotice" role="status" hidden><strong>已打开电脑配对入口</strong><p>勾选同意并完成本机采集后，结果会同时显示在本机和发起配对的电脑页面。</p><button class="text-button" id="copyPendingPair" type="button" hidden>复制本次配对链接到 Safari</button></div>
             <ol class="steps">
-              <li><span class="step-number">01</span><div><h3>下载设备确认文件</h3><p>勾选下方同意项，下载苹果描述文件。网页本身无法直接读取这些编号。</p></div></li>
-              <li><span class="step-number">02</span><div><h3>在系统设置中确认</h3><p>打开「设置」→「已下载描述文件」，检查信息后点「安装」。下载后请在 8 分钟内完成。</p></div></li>
-              <li><span class="step-number">03</span><div><h3>回到这里查看结果</h3><p>系统将信息发送给本站。页面会自动更新，也可以手动重新加载。</p></div></li>
+              <li><span class="step-number">01</span><div><h3 id="step1Title">扫码并选择采集方式</h3><p id="step1Copy">iPhone / iPad 可在 Safari 使用系统确认；Android、鸿蒙直接采集浏览器开放的基础信息。</p></div></li>
+              <li><span class="step-number">02</span><div><h3 id="step2Title">检查范围并确认</h3><p id="step2Copy">手机勾选同意后开始。网页可读取的字段随系统与浏览器变化，无法获取的项目会说明原因。</p></div></li>
+              <li><span class="step-number">03</span><div><h3>查看并同步结果</h3><p>结果自动显示在本机；通过电脑二维码进入时，电脑页面也会同步更新。</p></div></li>
             </ol>
 
-            <label class="consent" id="consentLabel"><input id="consent" type="checkbox"><span id="consentText">我同意本次将系统允许回传的 UDID、IMEI、ICCID、MEID 和基础设备信息发送到本站的 Cloudflare 后端；其它项目仅在实际回传或我手动补录后展示，结果 <strong>15 分钟后不可访问</strong>。<span id="pairedConsent" hidden>本次结果也会显示在发起配对的电脑页面。</span></span></label>
+            <label class="consent" id="consentLabel"><input id="consent" type="checkbox"><span><span id="consentDescription">我同意将本次可获取的设备信息发送到本站的 Cloudflare 后端，结果 15 分钟后不可访问。</span><span id="pairedConsent" hidden>本次结果也会显示在发起配对的电脑页面。</span></span></label>
             <button class="primary-button" id="startCapture" type="button" disabled><span id="startLabel">下载设备确认文件</span><span aria-hidden="true">↗</span></button>
             <a class="download-again" id="downloadAgain" href="/profile.mobileconfig" hidden>再次下载本次确认文件</a>
             <p class="action-footnote" id="actionFootnote">需要你在手机上手动确认。不会因为打开网页就自动采集。</p>
-            <div class="share-row"><div><strong>现在用的是电脑？</strong><p>复制地址，在你的 iPhone / iPad Safari 中打开。</p></div><button id="copyLink" class="secondary-button small" type="button">复制地址</button></div>
+            <div class="share-row"><div><strong>也可以从手机直接打开</strong><p>复制地址，在 iPhone、Android 或鸿蒙手机浏览器中打开。</p></div><button id="copyLink" class="secondary-button small" type="button">复制地址</button></div>
           </section>
 
           <section class="result-card card" aria-labelledby="resultTitle">
@@ -68,7 +75,14 @@
             <div class="empty-state" id="emptyState"><span class="empty-symbol" aria-hidden="true"><span></span></span><h3 id="emptyTitle">还没有设备信息</h3><p id="emptyCopy">从左侧开始采集。只展示本次会话回传的信息。</p><button class="secondary-button small" id="emptyReload" type="button">重新加载</button></div>
 
             <div id="resultDetails" hidden>
-              <p class="copy-hint">点击项目名称或数值即可复制；未返回的项目不可复制。</p>
+              <p class="copy-hint">点击项目名称或数值即可复制；未获取的项目显示原因，不复制提示文字。</p>
+              <p class="capability-note" id="resultCapability"></p>
+              <dl class="device-facts">
+                <div><dt><button class="field-name" type="button" data-copy="platformName" disabled>设备系统</button><span id="platformNameSource" class="source-label" hidden></span></dt><dd><button class="copy-value fact-value" id="platformNameValue" type="button" data-copy="platformName" disabled>待采集</button></dd></div>
+                <div><dt><button class="field-name" type="button" data-copy="browserName" disabled>浏览器</button><span id="browserNameSource" class="source-label" hidden></span></dt><dd><button class="copy-value fact-value" id="browserNameValue" type="button" data-copy="browserName" disabled>待采集</button></dd></div>
+                <div><dt><button class="field-name" type="button" data-copy="screenSize" disabled>屏幕尺寸</button><span id="screenSizeSource" class="source-label" hidden></span></dt><dd><button class="copy-value fact-value" id="screenSizeValue" type="button" data-copy="screenSize" disabled>待采集</button></dd></div>
+                <div><dt><button class="field-name" type="button" data-copy="language" disabled>浏览器语言</button><span id="languageSource" class="source-label" hidden></span></dt><dd><button class="copy-value fact-value" id="languageValue" type="button" data-copy="language" disabled>待采集</button></dd></div>
+              </dl>
               <div class="identifier-field"><div class="field-label"><button class="field-name" type="button" data-copy="udid" aria-label="复制 UDID 的值" disabled>UDID</button><span id="udidSource" class="source-label" hidden></span></div><button class="identifier-value copy-value" id="udidValue" type="button" data-copy="udid" aria-label="复制 UDID 的值" disabled>未返回</button><p class="field-help" id="udidHelp">苹果设备的唯一标识</p></div>
               <div class="identifier-field"><div class="field-label"><button class="field-name" type="button" data-copy="imei" aria-label="复制 IMEI 的值" disabled>IMEI</button><span id="imeiSource" class="source-label" hidden></span></div><button class="identifier-value copy-value" id="imeiValue" type="button" data-copy="imei" aria-label="复制 IMEI 的值" disabled>未返回</button><p class="field-help" id="imeiHelp">并非所有设备或系统都会回传 IMEI；Wi-Fi 版设备没有 IMEI。</p></div>
               <dl class="device-facts">
@@ -89,7 +103,7 @@
 
             <details class="manual-section" id="manualSection" hidden>
               <summary>补录关于本机信息<span aria-hidden="true">＋</span></summary>
-              <p>在手机「设置 → 通用 → 关于本机」中核对，只填写需要补充或修改的项目。手动内容会标明来源；系统已返回的值只读，型号映射可手动更正。留空不会删除已有值。</p>
+              <p>在手机「设置 → 关于本机 / 关于手机」中核对，只填写需要补充或修改的项目。手动内容会标明来源；系统回传值只读，浏览器信息及资料映射可更正。留空不会删除已有值。</p>
               <form id="detailsForm" class="manual-form">
                 <div class="manual-fields">
                   <div><label class="input-label" for="manualImei">IMEI</label><input id="manualImei" name="imei" type="text" inputmode="numeric" autocomplete="off" minlength="15" maxlength="15" pattern="[0-9]{15}" placeholder="15 位数字"><small id="manualImeiStatus" class="input-status"></small></div>
@@ -110,7 +124,7 @@
           </section>
         </div>
 
-        <section class="boundaries" aria-label="采集范围说明"><article><span>01 / 明确确认</span><h3>每次采集，由你决定</h3><p>这是苹果 Profile Service 的设备确认流程，不是网页静默读取，也不等同于加入 MDM 设备管理。</p></article><article><span>02 / 如实显示</span><h3>没有返回，就不编造</h3><p>可选字段可能没有返回。系统回传、手动填写与本地资料映射分别标明；Android 不支持本描述文件流程。</p></article><article><span>03 / 短期结果</span><h3>查看完，可以随时清除</h3><p>应用仅保留短期会话；到期后不可查询。Cloudflare 平台备份的保留周期以平台策略为准。</p></article></section>
+        <section class="boundaries" aria-label="采集范围说明"><article><span>01 / 明确确认</span><h3>每次采集，由你决定</h3><p>三端均可扫码。苹果系统确认流程可回传部分设备标识；浏览器采集在勾选同意后回传基础信息。</p></article><article><span>02 / 如实显示</span><h3>按系统能力展示</h3><p>浏览器无法直接读取 IMEI、ICCID、序列号等硬件编号；苹果系统也不保证返回所有字段。每项注明来源与限制。</p></article><article><span>03 / 短期结果</span><h3>查看完，可以随时清除</h3><p>应用仅保留短期会话；到期后不可查询。Cloudflare 平台备份的保留周期以平台策略为准。</p></article></section>
       </main>
 
       <footer class="site-footer"><span>JobsDeviceInfo <span class="footer-divider">/</span> 设备信息采集工具</span><span>由你确认，才开始。</span></footer>

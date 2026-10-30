@@ -3,6 +3,7 @@ import {
   DEVICE_DETAIL_FIELDS, normalizeDetailValue
 } from './profile.js';
 import { sha256, cleanup } from './storage.js';
+import { validateBrowserDevice } from './browser-device.js';
 import modelNames from '../data/apple-device-models.json' with { type: 'json' };
 import osVersions from '../data/apple-os-versions.json' with { type: 'json' };
 
@@ -96,8 +97,25 @@ function sessionDevice(row) {
   if (!profile && !row.manual_imei && !Object.keys(manual).length) return null;
   const keys = ['udid', 'product', 'version', ...DEVICE_DETAIL_FIELDS];
   const device = { ...Object.fromEntries(keys.map((key) => [key, null])), ...profile, fieldSources: {} };
+  if (profile && profile.collectionMethod !== 'browser') {
+    device.platform = 'ios';
+    device.platformName = 'iOS / iPadOS';
+    device.platformSource = 'profile';
+    device.collectionMethod = 'profile';
+    device.fieldSources.platformName = 'profile';
+  }
   for (const key of keys) {
-    if (device[key]) device.fieldSources[key] = profile?.fieldSources?.[key] === 'derived' ? 'derived' : 'profile';
+    if (device[key]) {
+      const source = profile?.fieldSources?.[key];
+      device.fieldSources[key] = ['derived', 'browser', 'browser-hint', 'selected'].includes(source) ? source : 'profile';
+    }
+  }
+  if (profile?.collectionMethod === 'browser') {
+    for (const key of ['platformName', 'browserName', 'screenSize', 'language']) {
+      if (device[key] && ['browser', 'browser-hint', 'selected'].includes(profile.fieldSources?.[key])) {
+        device.fieldSources[key] = profile.fieldSources[key];
+      }
+    }
   }
   // 构建号和产品必须同时命中 Apple 公开版本目录，避免把浏览器版本当系统版本。
   if (!device.osVersion && Object.hasOwn(osVersions, device.version)) {
@@ -115,7 +133,7 @@ function sessionDevice(row) {
   }
   for (const key of DEVICE_DETAIL_FIELDS) {
     const value = key === 'imei' ? row.manual_imei : normalizeDetailValue(key, manual[key], { allowGrouping: false });
-    if (value && (!device[key] || device.fieldSources[key] === 'derived')) {
+    if (value && (!device[key] || ['derived', 'browser', 'browser-hint'].includes(device.fieldSources[key]))) {
       device[key] = value;
       device.fieldSources[key] = 'manual';
     }
@@ -140,7 +158,7 @@ function sessionResult(row) {
     expiresAt: new Date(row.expires_at * 1000).toISOString(),
     receivedAt: row.received_at ? new Date(row.received_at * 1000).toISOString() : null,
     device,
-    verification: row.received_at ? 'signature-only' : null,
+    verification: row.received_at ? device?.collectionMethod === 'browser' ? 'browser-reported' : 'signature-only' : null,
     callbackError,
     profileUrl: '/profile.mobileconfig',
     paired: row.source === 'pair',
@@ -317,6 +335,26 @@ async function receiveProfile(request, db, now, token) {
   return new Response(null, { status: 301, headers: { Location: new URL('/?collected=1', request.url).href } });
 }
 
+async function receiveBrowser(request, db, now) {
+  const body = await readJson(request);
+  const row = await getSession(request, db, now);
+  if (!row) throw new RequestError(401, 'session_required', '采集会话已失效，请重新开始。');
+  if (row.source === 'pair' && row.viewer_role !== 'phone') {
+    throw new RequestError(403, 'phone_required', '请在扫描二维码的手机上确认并回传设备信息。');
+  }
+  if (row.received_at) throw new RequestError(409, 'already_received', '此采集会话已完成，不接受重复回传。');
+  const device = validateBrowserDevice(body);
+  const received = Math.floor(Date.now() / 1000);
+  const updated = await db.prepare(`UPDATE sessions
+    SET device_json = ?, received_at = ?, callback_error_json = NULL, callback_error_at = NULL
+    WHERE id = ? AND received_at IS NULL AND expires_at > ?`)
+    .bind(JSON.stringify(device), received, row.id, received).run();
+  if (Number(updated.meta?.changes) !== 1) {
+    throw new RequestError(409, 'session_used_or_expired', '采集会话已经使用或失效，请重新开始。');
+  }
+  return json({ ok: true, session: sessionResult({ ...row, device_json: JSON.stringify(device), received_at: received }) });
+}
+
 async function manualImei(request, db, now) {
   const body = await readJson(request);
   const row = await getSession(request, db, now);
@@ -405,6 +443,7 @@ async function route(request, env) {
   }
   if (url.pathname === '/api/pair' && request.method === 'POST') return createPair(request, env.DB, now);
   if (url.pathname === '/api/pair/claim' && request.method === 'POST') return claimPair(request, env.DB, now);
+  if (url.pathname === '/api/session/browser' && request.method === 'POST') return receiveBrowser(request, env.DB, now);
   if (url.pathname === '/api/session/imei' && request.method === 'POST') return manualImei(request, env.DB, now);
   if (url.pathname === '/api/session/details' && request.method === 'POST') return manualDetails(request, env.DB, now);
   if (url.pathname === '/profile.mobileconfig' && request.method === 'GET') return sendProfile(request, env.DB, now);

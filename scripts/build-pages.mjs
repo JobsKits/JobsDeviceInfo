@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const output = path.join(root, '.pages-build');
-const assets = ['index.html', 'styles.css', 'app.js', 'qr-code.js', 'vendor-licenses.txt', 'public-site.json'];
+const assets = ['index.html', 'styles.css', 'app.js', 'device-capabilities.js', 'qr-code.js', 'vendor-licenses.txt', 'public-site.json'];
 const generated = new Set(['_worker.js', '_routes.json', ...assets]);
 
 function checkFile(file) {
